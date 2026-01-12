@@ -1,0 +1,353 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+
+library(tidyverse)
+library(here)
+library(neuroCombat)
+
+```
+
+
+# Clean MRI files
+
+```{r}
+# Load the raw MRI files and merge them
+dat_mri <- readxl::read_excel(here("data", "raw",  "551_cog_reserve_activity_DBo_20230523_MRI.xlsx")) %>% 
+  mutate(I_ID = as.numeric(I_ID),
+         scan_date = lubridate::ymd(study_date), .after="study_date")
+
+
+# this data contains more than one scan for each individual (ignore this for the harmonization, it's relatively few individuals)
+dat_mri_update <- readxl::read_excel(here("data", "raw",  "551_cog_reserve_activity_DBo_20230627_MRI_update.xlsx")) %>% 
+  mutate(I_ID = as.numeric(I_ID),
+         scan_date = lubridate::ymd(study_date), .after="study_date") 
+
+
+dat_mri <- rbind(dat_mri, dat_mri_update)
+rm(dat_mri_update)
+
+```
+
+
+```{r}
+dat_mri <- dat_mri %>% 
+  drop_na(lh_middletemporal_thickness) %>%    #when one is missing, all thickness rois are missing
+  drop_na(scanner) %>%    # few scans are missing this info
+  mutate(field_strength = round(field_strength,1),
+         scanner = paste(scanner, field_strength, sep= "_"))
+
+# rename some variable names
+dat_mri <- dat_mri %>%
+  rename(WM_hypointensities = "WM-hypointensities",
+         Left_Thalamus = "Left-Thalamus",
+         Left_Caudate = "Left-Caudate",
+         Left_Putamen = "Left-Putamen",
+         Left_Pallidum = "Left-Pallidum",
+         Left_Hippocampus = "Left-Hippocampus",
+         Left_Amygdala = "Left-Amygdala",
+         Left_Accumbens_area = "Left-Accumbens-area",
+         Right_Thalamus = "Right-Thalamus",
+         Right_Caudate = "Right-Caudate",
+         Right_Putamen = "Right-Putamen",
+         Right_Pallidum = "Right-Pallidum",
+         Right_Hippocampus = "Right-Hippocampus",
+         Right_Amygdala = "Right-Amygdala",
+         Right_Accumbens_area = "Right-Accumbens-area")
+
+
+table(dat_mri$scanner)
+
+
+```
+
+
+```{r}
+
+# Predefined regions per ROIs
+wholebrain_ROIs <- c("bankssts", "caudalanteriorcingulate", "caudalmiddlefrontal", "cuneus", "entorhinal",
+                     "fusiform", "inferiorparietal", "inferiortemporal", "isthmuscingulate", "lateraloccipital",
+                     "lateralorbitofrontal", "lingual", "medialorbitofrontal", "middletemporal", "parahippocampal",
+                     "paracentral", "parsopercularis", "parsorbitalis", "parstriangularis", "pericalcarine",
+                     "postcentral", "posteriorcingulate", "precentral", "precuneus", "rostralanteriorcingulate",
+                     "rostralmiddlefrontal", "superiorfrontal", "superiorparietal", "superiortemporal",
+                     "supramarginal", "frontalpole", "temporalpole", "transversetemporal", "insula")
+
+thick_vars <- c(paste("lh_", wholebrain_ROIs, "_thickness", sep = ""), paste("rh_", wholebrain_ROIs, "_thickness", sep = ""))
+area_vars <- c(paste("lh_", wholebrain_ROIs, "_area", sep = ""), paste("rh_", wholebrain_ROIs, "_area", sep = ""))
+
+vol_vars <-c("EstimatedTotalIntraCranialVol", "WM_hypointensities", 
+             "Left_Thalamus", "Left_Caudate", "Left_Putamen", "Left_Pallidum", "Left_Hippocampus", "Left_Amygdala", "Left_Accumbens_area",
+             "Right_Thalamus", "Right_Caudate", "Right_Putamen", "Right_Pallidum", "Right_Hippocampus", "Right_Amygdala", "Right_Accumbens_area")
+
+```
+
+
+
+# Harmonization
+
+## Biological vars
+
+```{r}
+# bring in biological variables for the harmonization (Age, Sex, Diagnosis)
+
+dat_bio <- read.csv(here("data", "interim", "data_all_atQbaseline_for_MRI_harmonization.csv")) %>% 
+  mutate(I_sex = as.factor(I_sex),
+         D_Q_grouped = as.factor(D_Q_grouped))
+
+dat_mri <- left_join(dat_bio, dat_mri, by="I_ID") %>% 
+  drop_na(MRI_ID)
+
+```
+
+
+## Harmonize
+
+Harmonize thickness, areas and volumes (including icv and wm_hypo) all together
+
+```{r}
+mri_features  <- data.frame(t(dat_mri[,c(thick_vars, area_vars, vol_vars)]))  # needs to be transposed
+scanner <- dat_mri$scanner
+
+
+# make model matrix of biological variables
+mod <- model.matrix( ~ I_age_1 + I_sex + D_Q_grouped , data=dat_mri)
+
+# Harmonize
+mri_harmonization <- neuroCombat(dat=mri_features, batch=scanner, mod=mod)
+mri_features_harmonized <- data.frame(t(mri_harmonization$dat.combat))
+
+
+# rename colnames and merge back into dat_mri
+thick_vars_h <- c(paste(thick_vars, "h", sep="_"))
+area_vars_h <- c(paste(area_vars, "h", sep="_"))
+vol_vars_h <- c(paste(vol_vars, "h", sep="_"))
+
+colnames(mri_features_harmonized) <- c(thick_vars_h, area_vars_h, vol_vars_h)
+mri_features_harmonized$I_ID      <- dat_mri$I_ID  # append ID
+mri_features_harmonized$scan_date <- dat_mri$scan_date # append scan_date
+
+dat_mri <- left_join(dat_mri, mri_features_harmonized, by=c("I_ID", "scan_date"))
+
+```
+
+
+
+## Sanity Checks 
+
+```{r}
+# Bankssts
+ggplot(dat_mri, aes(x=lh_bankssts_thickness, y=lh_bankssts_thickness_h)) + 
+    geom_point()
+
+ggplot(dat_mri, aes(x=lh_bankssts_thickness, y=lh_bankssts_thickness_h, color=D_Q_grouped)) + 
+    geom_point()
+
+ggplot(dat_mri, aes(x=lh_bankssts_thickness, y=lh_bankssts_thickness_h, color=scanner)) + 
+    geom_point()
+
+```
+
+```{r}
+# Middle temporal 
+ggplot(dat_mri, aes(x=rh_middletemporal_thickness, y=rh_middletemporal_thickness_h)) + 
+    geom_point()
+
+ggplot(dat_mri, aes(x=rh_middletemporal_thickness, y=rh_middletemporal_thickness_h, color=D_Q_grouped)) + 
+    geom_point()
+
+ggplot(dat_mri, aes(x=rh_middletemporal_thickness, y=rh_middletemporal_thickness_h, color=scanner)) + 
+    geom_point()
+```
+
+```{r}
+# Before harmonization
+dat_mri %>%
+  ggplot(aes(
+    x = scanner,
+    y = lh_bankssts_thickness,
+    fill = scanner)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  xlab("")
+
+# After harmonization
+dat_mri %>%
+  ggplot(aes(
+    x = scanner,
+    y = lh_bankssts_thickness_h,
+    fill = scanner)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  xlab("")
+
+```
+
+```{r}
+
+# Before harmonization
+dat_mri %>%
+  ggplot(aes(
+    x = scanner,
+    y = Left_Hippocampus,
+    fill = scanner)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  xlab("")
+
+# After harmonization
+dat_mri %>%
+  ggplot(aes(
+    x = scanner,
+    y = Left_Hippocampus_h,
+    fill = scanner)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  xlab("")
+
+```
+
+```{r}
+# Before harmonization
+dat_mri %>%
+  ggplot(aes(
+    x = scanner,
+    y = EstimatedTotalIntraCranialVol,
+    fill = scanner)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  xlab("")
+
+# After harmonization
+dat_mri %>%
+  ggplot(aes(
+    x = scanner,
+    y = EstimatedTotalIntraCranialVol_h,
+    fill = scanner)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  xlab("")
+```
+
+```{r}
+# do we see effect of scanner?
+anova(lm(rh_precuneus_thickness ~ scanner, data=dat_mri))
+anova(lm(rh_precuneus_thickness_h ~ scanner, data=dat_mri))
+
+anova(lm(rh_precuneus_thickness ~ scanner + I_age_1, data=dat_mri))
+anova(lm(rh_precuneus_thickness_h ~ scanner + I_age_1, data=dat_mri))
+
+anova(lm(rh_precuneus_thickness ~ scanner + I_age_1 + I_sex, data=dat_mri))
+anova(lm(rh_precuneus_thickness_h ~ scanner + I_age_1 + I_sex, data=dat_mri))
+
+anova(lm(rh_precuneus_thickness ~ scanner + I_age_1 + I_sex + D_Q_grouped, data=dat_mri))
+anova(lm(rh_precuneus_thickness_h ~ scanner + I_age_1 + I_sex  + D_Q_grouped, data=dat_mri))
+
+```
+
+```{r}
+anova(lm(EstimatedTotalIntraCranialVol ~ scanner, data=dat_mri))
+anova(lm(EstimatedTotalIntraCranialVol_h ~ scanner, data=dat_mri))
+
+anova(lm(EstimatedTotalIntraCranialVol ~ scanner + I_age_1, data=dat_mri))
+anova(lm(EstimatedTotalIntraCranialVol_h ~ scanner + I_age_1, data=dat_mri))
+
+anova(lm(EstimatedTotalIntraCranialVol ~ scanner + I_age_1 + I_sex, data=dat_mri))
+anova(lm(EstimatedTotalIntraCranialVol_h ~ scanner + I_age_1 + I_sex, data=dat_mri))
+
+anova(lm(EstimatedTotalIntraCranialVol ~ scanner + I_age_1 + I_sex + D_Q_grouped, data=dat_mri))
+anova(lm(EstimatedTotalIntraCranialVol_h ~ scanner + I_age_1 + I_sex  + D_Q_grouped, data=dat_mri))
+
+```
+
+
+
+# Calculate ROIs
+```{r}
+wholebrain_ROIs <- c("bankssts", "caudalanteriorcingulate", "caudalmiddlefrontal", "cuneus", "entorhinal",
+                     "fusiform", "inferiorparietal", "inferiortemporal", "isthmuscingulate", "lateraloccipital",
+                     "lateralorbitofrontal", "lingual", "medialorbitofrontal", "middletemporal", "parahippocampal",
+                     "paracentral", "parsopercularis", "parsorbitalis", "parstriangularis", "pericalcarine",
+                     "postcentral", "posteriorcingulate", "precentral", "precuneus", "rostralanteriorcingulate",
+                     "rostralmiddlefrontal", "superiorfrontal", "superiorparietal", "superiortemporal",
+                     "supramarginal", "frontalpole", "temporalpole", "transversetemporal", "insula")
+
+frontal_ROIs   <- c("caudalmiddlefrontal", "lateralorbitofrontal", "medialorbitofrontal", "parsopercularis",
+                  "parsorbitalis", "parstriangularis", "rostralmiddlefrontal", "superiorfrontal", "frontalpole")
+
+temporal_ROIs  <- c("bankssts", "inferiortemporal", "entorhinal", "middletemporal", "superiortemporal",
+                   "transversetemporal")
+
+parietal_ROIs  <- c("isthmuscingulate", "precuneus", "inferiorparietal", "superiorparietal", "supramarginal")
+
+occipital_ROIs <- c("cuneus", "lateraloccipital", "lingual", "pericalcarine")
+
+ADsign_ROIs    <- c("entorhinal", "inferiortemporal", "middletemporal", "fusiform")
+
+
+# temporoparietal: combining lateral parietal, medial parietal, lateral temporal and medial temporal
+temporoparietal_ROIs <-  c("bankssts", "inferiorparietal", "inferiortemporal", "middletemporal", "superiortemporal", 
+                           "supramarginal", "transversetemporal", "isthmuscingulate", "precuneus", "entorhinal", "parahippocampal")
+
+
+
+
+## Declare functions
+
+# Function to write the variable names in the format in which they might come
+get_varnames <- function(rois_list, type) {
+  if (type=="thick") varnames <- c(paste("lh_", rois_list, "_thickness_h", sep = ""), paste("rh_", rois_list, "_thickness_h", sep = ""))
+  else if (type=="sa") varnames <- c(paste("lh_", rois_list, "_area_h", sep = ""), paste("rh_", rois_list, "_area_h", sep = ""))
+  else print("Error: type unrecognized!")
+  return(varnames)
+}
+
+
+# Function that calculates the composite ROI from a list of regions (weighted or unweighted options)
+calculate_metaroi <- function(vars, weight_by_vars = NULL) {
+  if (is.null(weight_by_vars)) {
+    metaroi <- rowMeans(vars)
+  }
+  else {
+    metaroi <- rowSums(vars * weight_by_vars) / rowSums(weight_by_vars)
+  }
+  return(metaroi)
+}
+
+
+# calculate unweighted cortical thickness variables
+dat_mri$ADsign_thick_unweighted <- calculate_metaroi(dat_mri[,get_varnames(ADsign_ROIs, "thick")])
+
+# # create weighted cortical thickness variables  
+dat_mri$wholebrain_thick_weighted      <- calculate_metaroi(dat_mri[,get_varnames(wholebrain_ROIs, "thick")], 
+                                                       dat_mri[,get_varnames(wholebrain_ROIs, "sa")])
+
+dat_mri$temporoparietal_thick_weighted <- calculate_metaroi(dat_mri[,get_varnames(temporoparietal_ROIs, "thick")], 
+                                                            dat_mri[,get_varnames(temporoparietal_ROIs, "sa")])
+
+
+```
+
+
+# Save final MRI file
+
+```{r}
+# Save MRI dataset
+write.csv(dat_mri, here("data", "interim", "MRI_harmonized_all.csv"), row.names = F)
+
+# save only the harmonized info (the composite ROIs)
+
+dat_mri %>% 
+  select(I_ID, MRI_ID, scan_date, scanner, 
+         ADsign_thick_unweighted, 
+         wholebrain_thick_weighted, temporoparietal_thick_weighted,
+         #frontal_thick_weighted, temporal_thick_weighted, parietal_thick_weighted, occipital_thick_weighted
+         ) %>% 
+  write.csv(., here("data", "interim", "MRI_harmonized_ROIs.csv"), row.names = F)
+
+```
+
+

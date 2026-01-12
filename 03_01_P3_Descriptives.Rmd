@@ -1,0 +1,468 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+
+library(tidyverse)
+library(here)
+
+library(gt)
+library(gtsummary)
+
+library(survival)
+
+library(ggsurvfit)
+
+```
+
+
+```{r}
+# Load original cross-sectional dataset (with missings)
+dat <- readRDS(here("data", "processed", "Part3_ADcont_dat.rds"))
+
+
+# Load median dataset
+datmedian <- readRDS(file = here("data", "processed", "Part3_ADcont_dat_median.rds")) 
+
+
+# Dichotomize CAQ/FAV scores for visualization
+datmedian <- datmedian %>% 
+  mutate(CAV_lifetime_split = if_else(CAV_lifetime < median(CAV_lifetime), 0, 1),
+         CAV_past_split     = if_else(CAV_past < median(CAV_past), 0, 1),
+         CAV_current_split  = if_else(CAV_current < median(CAV_current), 0, 1),
+         FAV_split          = if_else(FAV < median(FAV), 0, 1)
+         )
+
+
+```
+
+
+# Table 1 
+
+```{r}
+
+table1_all <-
+  tbl_summary(
+    datmedian,
+    include = c(Died, Time_mort, Conv, Time_conv, Time_conv_m),
+    by = Diagnosis,
+    missing = "no", 
+    type = all_continuous() ~ "continuous2",
+    statistic = list(
+      all_continuous() ~ c("{median} ({p25}, {p75})",
+                           "{min}, {max}"),
+      all_categorical() ~ "{n} ({p})"),
+    digits = all_continuous() ~ 2  )%>%
+  add_n() %>% 
+  modify_header(label = "**Variable**")  %>% 
+  modify_header(all_stat_cols() ~ "**{level}**\nN = {n}") %>%
+  add_overall(col_label = "**Total**\nN = {N}") %>% 
+  modify_footnote(update = everything() ~ NA) %>%
+  bold_labels() %>% 
+  as_gt() %>%
+  gt::tab_header(
+    title = gt::md("**Table 1. Mortality information**"))
+
+table1_all
+
+table1_all %>%
+  gt::gtsave(filename=here("results", "3_mortality", "tables", "Mortality_info_across_diags_gt.docx"))
+
+```
+
+
+```{r}
+
+# Print table 1 with conversion dat, excluding those individual with no followup for conversion
+
+datmedian_conv <- datmedian %>% 
+  filter(Diagnosis != "AD") %>% 
+  filter(Time_conv != 0)
+
+table1_conv <-
+  tbl_summary(
+    datmedian_conv,
+    include = c(Conv, Time_conv, Time_conv_m, Died, Time_mort),
+    by = Diagnosis,
+    missing = "no", 
+    type = all_continuous() ~ "continuous2",
+    statistic = list(
+      all_continuous() ~ c("{median} ({p25}, {p75})",
+                           "{min}, {max}"),
+      all_categorical() ~ "{n} ({p})"),
+    digits = all_continuous() ~ 2  )%>%
+  add_n() %>% 
+  modify_header(label = "**Variable**")  %>% 
+  modify_header(all_stat_cols() ~ "**{level}**\nN = {n}") %>%
+  add_overall(col_label = "**Total**\nN = {N}") %>% 
+  modify_footnote(update = everything() ~ NA) %>%
+  bold_labels() %>% 
+  as_gt() %>%
+  gt::tab_header(
+    title = gt::md("**Table 1. Conversion information**"))
+
+table1_conv
+
+table1_conv %>%
+  gt::gtsave(filename=here("results", "3_mortality", "tables", "Conversion_info_across_diags_gt.docx"))
+
+
+
+# Print table 1 with conversion dat, without excluding the ones without follow-up
+
+datmedian_conv <- datmedian %>% 
+  filter(Diagnosis != "AD")
+
+table1_conv <-
+  tbl_summary(
+    datmedian_conv,
+    include = c(Conv, Time_conv, Time_conv_m, Died, Time_mort),
+    by = Diagnosis,
+    missing = "no", 
+    type = all_continuous() ~ "continuous2",
+    statistic = list(
+      all_continuous() ~ c("{median} ({p25}, {p75})",
+                           "{min}, {max}"),
+      all_categorical() ~ "{n} ({p})"),
+    digits = all_continuous() ~ 2  )%>%
+  add_n() %>% 
+  modify_header(label = "**Variable**")  %>% 
+  modify_header(all_stat_cols() ~ "**{level}**\nN = {n}") %>%
+  add_overall(col_label = "**Total**\nN = {N}") %>% 
+  modify_footnote(update = everything() ~ NA) %>%
+  bold_labels() %>% 
+  as_gt() %>%
+  gt::tab_header(
+    title = gt::md("**Table 1. Conversion information**"))
+
+table1_conv
+
+table1_conv %>%
+  gt::gtsave(filename=here("results", "3_mortality", "tables", "Conversion_info_across_diags_gt_all.docx"))
+
+```
+
+
+
+# Kaplan Meyer plots
+
+## By diagnosis
+
+```{r}
+km_fit_all <- survfit(Surv(Time_mort, Died) ~ 1, data = datmedian)
+#print(summary(km_fit_all))
+
+
+## KM - Total sample
+
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ 1, data = datmedian) 
+
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ 1, data = datmedian) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "Total sample"
+    ) + 
+  add_confidence_interval() +
+  add_risktable()
+
+
+## KM - by diagnosis
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ Diagnosis, data = datmedian) 
+#ggsurvfit::survfit2(Surv(Time_mort, Died) ~ 1, data = datmedian[datmedian$Diagnosis=="SCD",]) 
+
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ Diagnosis, data = datmedian) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "By diagnosis") + 
+  add_confidence_interval() +
+  add_risktable()
+
+
+```
+
+
+## By CAV lifetime
+
+```{r}
+
+## KM - Total sample
+
+survfit2(Surv(Time_mort, Died) ~ CAV_lifetime_split, data = datmedian) 
+survdiff(Surv(Time_mort, Died) ~ CAV_lifetime_split, data = datmedian) 
+
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ CAV_lifetime_split, data = datmedian) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "Total sample"
+    ) + 
+  add_confidence_interval() +
+  add_risktable()
+
+
+## KM - SCD
+survfit2(Surv(Time_mort, Died) ~ CAV_lifetime_split, data = datmedian[datmedian$Diagnosis=="SCD",]) 
+survdiff(Surv(Time_mort, Died) ~ CAV_lifetime_split, data = datmedian[datmedian$Diagnosis=="SCD",]) 
+
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ CAV_lifetime_split, data =  datmedian[datmedian$Diagnosis=="SCD",]) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "SCD"
+    ) + 
+  add_confidence_interval() +
+  add_risktable()
+
+
+## KM - MCI
+survfit2(Surv(Time_mort, Died) ~ CAV_lifetime_split, data = datmedian[datmedian$Diagnosis=="MCI",]) 
+survdiff(Surv(Time_mort, Died) ~ CAV_lifetime_split, data = datmedian[datmedian$Diagnosis=="MCI",]) 
+
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ CAV_lifetime_split, data =  datmedian[datmedian$Diagnosis=="MCI",]) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "MCI"
+    ) + 
+  add_confidence_interval() +
+  add_risktable()
+
+
+## KM - AD
+survfit2(Surv(Time_mort, Died) ~ CAV_lifetime_split, data = datmedian[datmedian$Diagnosis=="AD",]) 
+survdiff(Surv(Time_mort, Died) ~ CAV_lifetime_split, data = datmedian[datmedian$Diagnosis=="AD",]) 
+
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ CAV_lifetime_split, data =  datmedian[datmedian$Diagnosis=="AD",]) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "AD"
+    ) + 
+  add_confidence_interval() +
+  add_risktable()
+
+
+
+```
+
+
+## By CAV past
+
+```{r}
+
+## KM - Total sample
+
+survfit2(Surv(Time_mort, Died) ~ CAV_past_split, data = datmedian) 
+survdiff(Surv(Time_mort, Died) ~ CAV_past_split, data = datmedian) 
+
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ CAV_past_split, data = datmedian) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "Total sample"
+    ) + 
+  add_confidence_interval() +
+  add_risktable()
+
+
+## KM - SCD
+survfit2(Surv(Time_mort, Died) ~ CAV_past_split, data = datmedian[datmedian$Diagnosis=="SCD",]) 
+survdiff(Surv(Time_mort, Died) ~ CAV_past_split, data = datmedian[datmedian$Diagnosis=="SCD",]) 
+
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ CAV_past_split, data =  datmedian[datmedian$Diagnosis=="SCD",]) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "SCD"
+    ) + 
+  add_confidence_interval() +
+  add_risktable()
+
+
+## KM - MCI
+survfit2(Surv(Time_mort, Died) ~ CAV_past_split, data = datmedian[datmedian$Diagnosis=="MCI",]) 
+survdiff(Surv(Time_mort, Died) ~ CAV_past_split, data = datmedian[datmedian$Diagnosis=="MCI",]) 
+
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ CAV_past_split, data =  datmedian[datmedian$Diagnosis=="MCI",]) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "MCI"
+    ) + 
+  add_confidence_interval() +
+  add_risktable()
+
+
+## KM - AD
+survfit2(Surv(Time_mort, Died) ~ CAV_past_split, data = datmedian[datmedian$Diagnosis=="AD",]) 
+survdiff(Surv(Time_mort, Died) ~ CAV_past_split, data = datmedian[datmedian$Diagnosis=="AD",]) 
+
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ CAV_past_split, data =  datmedian[datmedian$Diagnosis=="AD",]) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "AD"
+    ) + 
+  add_confidence_interval() +
+  add_risktable()
+
+```
+
+
+
+## By CAV current
+
+```{r}
+
+## KM - Total sample
+
+survfit2(Surv(Time_mort, Died) ~ CAV_current_split, data = datmedian) 
+survdiff(Surv(Time_mort, Died) ~ CAV_current_split, data = datmedian) 
+
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ CAV_current_split, data = datmedian) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "Total sample"
+    ) + 
+  add_confidence_interval() +
+  add_risktable()
+
+
+## KM - SCD
+survfit2(Surv(Time_mort, Died) ~ CAV_current_split, data = datmedian[datmedian$Diagnosis=="SCD",]) 
+survdiff(Surv(Time_mort, Died) ~ CAV_current_split, data = datmedian[datmedian$Diagnosis=="SCD",]) 
+
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ CAV_current_split, data =  datmedian[datmedian$Diagnosis=="SCD",]) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "SCD"
+    ) + 
+  add_confidence_interval() +
+  add_risktable()
+
+
+## KM - MCI
+survfit2(Surv(Time_mort, Died) ~ CAV_current_split, data = datmedian[datmedian$Diagnosis=="MCI",]) 
+survdiff(Surv(Time_mort, Died) ~ CAV_current_split, data = datmedian[datmedian$Diagnosis=="MCI",]) 
+
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ CAV_current_split, data =  datmedian[datmedian$Diagnosis=="MCI",]) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "MCI"
+    ) + 
+  add_confidence_interval() +
+  add_risktable()
+
+
+## KM - AD
+survfit2(Surv(Time_mort, Died) ~ CAV_current_split, data = datmedian[datmedian$Diagnosis=="AD",]) 
+survdiff(Surv(Time_mort, Died) ~ CAV_current_split, data = datmedian[datmedian$Diagnosis=="AD",]) 
+
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ CAV_current_split, data =  datmedian[datmedian$Diagnosis=="AD",]) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "AD"
+    ) + 
+  add_confidence_interval() +
+  add_risktable()
+
+
+```
+
+
+## By FAV
+
+```{r}
+
+## KM - Total sample
+
+survfit2(Surv(Time_mort, Died) ~ FAV_split, data = datmedian) 
+survdiff(Surv(Time_mort, Died) ~ FAV_split, data = datmedian) 
+
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ FAV_split, data = datmedian) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "Total sample"
+    ) + 
+  add_confidence_interval() +
+  add_risktable()
+
+
+## KM - SCD
+survfit2(Surv(Time_mort, Died) ~ FAV_split, data = datmedian[datmedian$Diagnosis=="SCD",]) 
+survdiff(Surv(Time_mort, Died) ~ FAV_split, data = datmedian[datmedian$Diagnosis=="SCD",]) 
+
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ FAV_split, data =  datmedian[datmedian$Diagnosis=="SCD",]) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "SCD"
+    ) + 
+  add_confidence_interval() +
+  add_risktable()
+
+
+## KM - MCI
+survfit2(Surv(Time_mort, Died) ~ FAV_split, data = datmedian[datmedian$Diagnosis=="MCI",]) 
+survdiff(Surv(Time_mort, Died) ~ FAV_split, data = datmedian[datmedian$Diagnosis=="MCI",]) 
+
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ FAV_split, data =  datmedian[datmedian$Diagnosis=="MCI",]) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "MCI"
+    ) + 
+  add_confidence_interval() +
+  add_risktable()
+
+
+## KM - AD
+survfit2(Surv(Time_mort, Died) ~ FAV_split, data = datmedian[datmedian$Diagnosis=="AD",]) 
+survdiff(Surv(Time_mort, Died) ~ FAV_split, data = datmedian[datmedian$Diagnosis=="AD",]) 
+
+ggsurvfit::survfit2(Surv(Time_mort, Died) ~ FAV_split, data =  datmedian[datmedian$Diagnosis=="AD",]) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "AD"
+    ) + 
+  add_confidence_interval() +
+  add_risktable()
+
+```
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,132 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+```{r}
+
+library(tidyverse)
+library(here)
+
+theme_set(theme_classic())
+
+```
+
+
+## Longitudinal models
+
+```{r}
+# Load median datasets (with longitudinal cognition)
+datmedian_MMSE <- readRDS(file = here("data", "processed", "Part2_ADcont_median_mmse.rds")) %>% mutate(I_ID = as.factor(I_ID))
+datmedian_MEM  <- readRDS(file = here("data", "processed", "Part2_ADcont_median_mem.rds"))  %>% mutate(I_ID = as.factor(I_ID))
+datmedian_EXEC <- readRDS(file = here("data", "processed", "Part2_ADcont_median_exec.rds")) %>% mutate(I_ID = as.factor(I_ID))
+
+
+
+datmedian_MMSE <- datmedian_MMSE %>% 
+  mutate(CAV_lifetime_split = as.factor(if_else(CAV_lifetime < median(CAV_lifetime), 0, 1)),
+         CAV_past_split     = if_else(CAV_past < median(CAV_past), 0, 1),
+         CAV_current_split  = if_else(CAV_current < median(CAV_current), 0, 1),
+         FAV_split          = if_else(FAV < median(FAV), 0, 1)
+         )
+
+datmedian_MMSE_AD <- datmedian_MMSE %>% 
+  filter(Diagnosis == "AD")
+
+```
+
+
+## Figure 3
+
+```{r}
+
+# CAV_lifetime - MMSE
+
+lmer_CAV_past <- lme4::lmer(MMSE ~ Time_years*TP_thick_s + Time_years*CAV_past + 
+                                              Time_years*Age_s + Time_years*Sex + (Time_years|I_ID), 
+                                            data =datmedian_MMSE_AD,
+                                            control = lme4::lmerControl(optimizer = "bobyqa"))
+
+lmer_FAV <- lme4::lmer(MMSE ~ Time_years*TP_thick_s + Time_years*FAV + 
+                                              Time_years*Age_s + Time_years*Sex + (Time_years|I_ID), 
+                                            data =datmedian_MMSE_AD,
+                                            control = lme4::lmerControl(optimizer = "bobyqa"))
+
+#summary(lmer_CAV_past)
+
+mean_CAV_past <- mean(datmedian_MMSE_AD[datmedian_MMSE_AD$Visit == 1, "CAV_past"]$CAV_past)
+sd_CAV_past <- sd(datmedian_MMSE_AD[datmedian_MMSE_AD$Visit == 1, "CAV_past"]$CAV_past)
+mean_CAV_past + 1.5*sd_CAV_past
+mean_CAV_past - 1.5*sd_CAV_past
+
+mean_FAV_past <- mean(datmedian_MMSE_AD[datmedian_MMSE_AD$Visit == 1, "FAV"]$FAV)
+sd_FAV_past <- sd(datmedian_MMSE_AD[datmedian_MMSE_AD$Visit == 1, "FAV"]$FAV)
+mean_FAV_past + 1.5*sd_FAV_past
+mean_FAV_past - 1.5*sd_FAV_past
+
+
+pred_CAV <- ggeffects::ggeffect(lmer_CAV_past, c("Time_years[0,1,2,3,4,5,6,7]", "CAV_past[1.6, 3.6]"))
+pred_FAV <- ggeffects::ggeffect(lmer_FAV, c("Time_years[0,1,2,3,4,5,6,7]", "FAV[31,255]"))
+
+# plot(pred_CAV)
+
+
+# Plot
+
+p_past_CAV <- pred_CAV %>% 
+  ggplot(., aes(x=x, y=predicted)) +
+  geom_line(aes(linetype=group), linewidth=1, color = "#B355A5") +
+  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, group = group), fill = "#B355A5", linetype=0, alpha=0.1) +
+  labs(y = "MMSE",
+        x = "Time (years)",     
+        title = "Past Cognitive activity") +
+  scale_linetype_manual(values=c("1.6" = "solid", "3.6" = "dotted"), name="Past CAQ score", 
+                        labels=c("Low (Mean-1.5*SD)", "High (Mean+1.5*SD)")) +
+  theme(legend.position = c(0.8, 0.8)) +
+  annotate(geom = "text", label="Past CAQ βstd: 0.17, p < 0.001",      x = 0, y = 6.5, hjust=0, size = 3.5) +  
+  annotate(geom = "text", label="Past CAQ * Time βstd: -0.01, p = 0.622", x = 0, y = 5, hjust=0, size = 3.5)
+
+
+p_past_CAV
+
+
+p_FAV <- pred_FAV %>% 
+  ggplot(., aes(x=x, y=predicted)) +
+  geom_line(aes(linetype=group), linewidth=1, color = "#B355A5") +
+  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, group = group), fill = "#B355A5", linetype=0, alpha=0.1) +
+  labs(y = "MMSE",
+        x = "Time (years)",     
+        title = "Physical activity") +
+  scale_linetype_manual(values=c("31" = "solid", "255" = "dotted"), name="PASE score", 
+                        labels=c("Low (Mean-1.5*SD)", "High (Mean+1.5*SD)")) +
+  theme(legend.position = c(0.8, 0.8)) +
+  annotate(geom = "text", label="PASE βstd: 0.11, p = 0.003",      x = 0, y = 6.5, hjust=0, size = 3.5) +  
+  annotate(geom = "text", label="PASE * Time βstd: -0.01, p = 0.758", x = 0, y = 5, hjust=0, size = 3.5)
+
+p_FAV
+
+
+
+figure3 <- cowplot::plot_grid(p_past_CAV, 
+                               p_FAV, 
+                               nrow = 1, labels = c('A', 'B'))
+
+
+tiff(here("results", "2_resilience", "Figure3_manuscript.tiff"), width = 200, height = 100,
+      units = 'mm', res = 400)
+figure3
+dev.off()
+
+# 
+# pdf(here("results", "2_resilience", "Figure3_manuscript.pdf"), width = 10, height = 7)
+# figure3
+# dev.off()
+
+
+```
+
+ 
+

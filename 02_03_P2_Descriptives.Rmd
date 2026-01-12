@@ -1,0 +1,401 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+library(tidyverse)
+library(here)
+
+#library(mice)  # calling the function with the package name instead
+
+library(table1)
+
+library(gt)
+library(gtsummary)
+
+theme_set(theme_classic())
+
+```
+
+
+## Complete case
+
+```{r}
+
+# Load original cross-sectional dataset (with missings)
+dat <- readRDS(here("data", "processed", "Part2_ADcont_dat.rds"))
+
+```
+
+
+### Table 1
+
+```{r}
+
+table1_all <-
+  tbl_summary(
+    dat,
+    include = c(Age, Sex, Edu_tert, APOE_e4, MMSEq, MEMq, EXECq, CAV_lifetime, CAV_past, CAV_current, FAV, ADsign_thick, WB_thick, TP_thick),
+    by = Diagnosis,
+    missing = "no", 
+    statistic = list(
+      all_continuous() ~ "{mean} ± {sd}",
+      all_categorical() ~ "{n} ({p})"),
+    digits = all_continuous() ~ 1  )%>%
+  add_n() %>% 
+  modify_header(label = "**Variable**")  %>% 
+  modify_header(all_stat_cols() ~ "**{level}**\nN = {n}") %>%
+  add_overall(col_label = "**Total**\nN = {N}") %>% 
+  modify_footnote(update = everything() ~ NA) %>%
+  # modify_table_styling(   # add note to specific row
+  #   columns = label,
+  #   rows = label == "MMSE",
+  #   footnote = "i.e. mmse") %>% 
+  bold_labels() %>% 
+  as_gt() %>%
+  gt::tab_header(
+    title = gt::md("**Table 1. Characteristics Alzheimer's Disease Continuum **")) %>%
+  gt::tab_source_note("Mean +/- Standard Deviation, unless specified otherwise.
+                      SCD = Subjective Cognitive Decline, 
+                      MCI = Mild Cognitive Impairment,
+                      AD = Alzheimer's disease Dementia
+                      ")
+
+table1_all
+
+table1_all %>% 
+  gt::gtsave(filename=here("results", "2_resilience", "tables", "Table1_across_diags_gt.docx"))
+
+```
+
+
+
+### Table missings
+
+```{r}
+
+table1_missings <-
+  tbl_summary(
+    dat,
+    include = c(Age, Sex, Edu_tert, APOE_e4, MMSEq, MEMq, EXECq, CAV_lifetime, CAV_past, CAV_current, FAV, ADsign_thick, WB_thick, TP_thick),
+    by = Diagnosis,
+    missing_text = "Missing, n",
+    statistic = list(
+      all_continuous() ~ "{p_miss}",
+      all_categorical() ~ "{p_miss}"),
+    digits = all_continuous() ~ 1
+  )%>%
+  add_n() %>% 
+  modify_header(all_stat_cols() ~ "**{level}**\nN = {n}") %>%
+  add_overall(col_label = "**Total**\nN = {N}") %>% 
+  modify_footnote(update = everything() ~ NA) %>%
+  bold_labels() %>% 
+  as_gt() %>%
+  gt::tab_header(
+    title = gt::md("**Table 1. Missing values across cohort**")) %>%
+  gt::tab_source_note("Mean +/- Standard Deviation, unless specified otherwise. 
+                      SCD = Subjective Cognitive Decline, 
+                      MCI = Mild Cognitive Impairment,
+                      AD = Alzheimer's disease Dementia
+                      ")
+
+table1_missings
+
+table1_missings %>% 
+  #as_gt() %>% 
+  gt::gtsave(filename=here("results", "2_resilience", "tables", "Table1_across_diags_MISSING.docx"))
+
+```
+
+
+
+### Age - boxplot
+
+```{r}
+ggplot(dat, aes(x = Diagnosis, y = Age, fill=Diagnosis)) + 
+  geom_boxplot(outlier.shape = NA) + 
+  geom_jitter(shape=16, alpha=0.5, position = position_jitter(0.3), size = 0.8, color="black") +
+  theme_classic() +
+  ggeasy::easy_labs()
+
+```
+
+
+
+## Mids
+
+```{r}
+# load imputed data - cross-sectional dataset
+
+datmids <- readRDS(file = here("data", "processed", "Part2_ADcont_datmids.rds"))
+
+datimp <- mice::complete(datmids, action="long", include = FALSE)
+
+```
+
+
+
+### Descriptive statistics
+
+(akin to table 1 but with imputed datasets)
+Compute descriptive statistics in each complete imputed dataset and use Rubin's rules to pool the statistics and compute their standard errors. 
+
+```{r}
+
+
+# list of variables to summarise (meand and sd) across Diagnoses, across imputations
+vars <- c("MMSEq", "MEMq", "EXECq", "CAV_lifetime", "CAV_current", "CAV_past", "FAV")
+
+# pool means and sd-s of continuous variables (just average, no Rubin's rule here for the SDs)
+pooled_means_cont_vars <- datimp %>%
+  select(all_of(c(vars, "Diagnosis", ".imp"))) %>%
+  pivot_longer(cols = all_of(vars), names_to = "variable", values_to = "value") %>%
+  group_by(variable, Diagnosis) %>%
+  summarise(., mean=mean(value), sd = sd(value)) %>%
+  mutate(Estimate = paste(round(mean,1), " ± ", round(sd,1), sep=""))
+
+pooled_means_cont_vars
+
+pooled_means_cont_vars %>%
+  gt() %>%
+  gt::gtsave(filename=here("results", "2_resilience", "tables", "Table1_across_diags_MIDS_pooled_cont_v2.docx"))
+
+
+# pool means and sd-s of continuous variables (just average, no Rubin's rule here for the SDs) - per diagnosis - directly table1
+datimp %>% 
+  tbl_summary(., include = c("MMSEq", "MEMq", "EXECq", "CAV_lifetime", "CAV_past", "CAV_current", "FAV"), by = Diagnosis,
+    missing = "no", 
+    statistic = list(
+      all_continuous() ~ "{mean} ± {sd}",
+      all_categorical() ~ "{n} ({p})"),
+    digits = all_continuous() ~ 1  )%>%
+  add_n() %>% 
+  modify_header(label = "**Variable**")  %>% 
+  modify_header(all_stat_cols() ~ "**{level}**\nN = {n}") %>%
+  add_overall(col_label = "**Total**\nN = {N}") %>% 
+  as_gt() %>% 
+  gt::gtsave(filename=here("results", "2_resilience", "tables", "Table1_across_diags_MIDS_pooled_cont.docx"))
+
+
+
+
+# Summarize percentage for categorical variables
+
+# declare function to extract mode
+calculate_mode <- function(x) {
+  uniqx <- unique(x)
+  uniqx[which.max(tabulate(match(x, uniqx)))] }
+
+pooled_N_factors <- datimp %>% 
+  select(.id, Sex, Edu_tert, APOE_e4, Diagnosis) %>% 
+  group_by(.id) %>% 
+  summarise_all(.funs = calculate_mode)
+
+pooled_N_factors %>% 
+  tbl_summary(., include = c(Edu_tert, APOE_e4), by = Diagnosis,
+    missing = "no", 
+    statistic = list(
+      all_continuous() ~ "{mean} ± {sd}",
+      all_categorical() ~ "{n} ({p})"),
+    digits = all_continuous() ~ 1  )%>%
+  add_n() %>% 
+  modify_header(label = "**Variable**")  %>% 
+  modify_header(all_stat_cols() ~ "**{level}**\nN = {n}") %>%
+  add_overall(col_label = "**Total**\nN = {N}") %>% 
+  as_gt() %>% 
+  gt::gtsave(filename=here("results", "2_resilience", "tables", "Table1_across_diags_MIDS_pooled_factors.docx"))
+
+```
+
+
+## Median dataset
+
+```{r}
+# Load longitudinal median datasets
+datmedian_MMSE <- readRDS(file = here("data", "processed", "Part2_ADcont_median_mmse.rds"))
+datmedian_MEM  <- readRDS(file = here("data", "processed", "Part2_ADcont_median_mem.rds"))
+datmedian_EXEC <- readRDS(file = here("data", "processed", "Part2_ADcont_median_exec.rds"))
+
+```
+
+
+### Stats
+
+```{r}
+datmedian_MMSE_ba <- datmedian_MMSE %>% 
+  group_by(I_ID) %>% 
+  mutate(visit = row_number(),
+         n_visits = max(visit), .after=I_ID) %>% 
+  ungroup() %>% 
+  filter(visit == n_visits)
+
+datmedian_MEM_ba <- datmedian_MEM %>% 
+  group_by(I_ID) %>% 
+  mutate(visit = row_number(),
+         n_visits = max(visit), .after=I_ID) %>% 
+  ungroup() %>% 
+  filter(visit == n_visits)
+
+datmedian_EXEC_ba <- datmedian_EXEC %>% 
+  group_by(I_ID) %>% 
+  mutate(visit = row_number(),
+         n_visits = max(visit), .after=I_ID) %>% 
+  ungroup() %>% 
+  filter(visit == n_visits)
+
+table(datmedian_MMSE_ba$n_visits, datmedian_MMSE_ba$Diagnosis)
+table(datmedian_MEM_ba$n_visits, datmedian_MEM_ba$Diagnosis)
+table(datmedian_EXEC_ba$n_visits, datmedian_EXEC_ba$Diagnosis)
+
+
+# psych::describe(datmedian_MMSE_ba)
+# psych::describe(datmedian_MEM_ba)
+# psych::describe(datmedian_EXEC_ba)
+
+table_mmse <-
+  tbl_summary(
+    datmedian_MMSE_ba,
+    include = c(n_visits, Time_years),
+    by = Diagnosis,
+    missing = "no", 
+    type = all_continuous() ~ "continuous2",
+    statistic = list(
+      all_continuous() ~ c("{median} ({p25}, {p75})",
+                           "{min}, {max}"),
+      all_categorical() ~ "{n} ({p})"),
+    digits = all_continuous() ~ 2  )%>%
+    add_overall(col_label = "**Total**\nN = {N}") %>% 
+  as_gt() %>%
+  gt::gtsave(filename=here("results", "2_resilience", "tables", "MMSE_followup_info.docx"))
+
+table_mem <-
+  tbl_summary(
+    datmedian_MEM_ba,
+    include = c(n_visits, Time_years),
+    by = Diagnosis,
+    missing = "no", 
+    type = all_continuous() ~ "continuous2",
+    statistic = list(
+      all_continuous() ~ c("{median} ({p25}, {p75})",
+                           "{min}, {max}"),
+      all_categorical() ~ "{n} ({p})"),
+    digits = all_continuous() ~ 2  )%>%
+    add_overall(col_label = "**Total**\nN = {N}") %>% 
+  as_gt() %>%
+  gt::gtsave(filename=here("results", "2_resilience", "tables", "MEM_followup_info.docx"))
+
+table_exec <-
+  tbl_summary(
+    datmedian_EXEC_ba,
+    include = c(n_visits, Time_years),
+    by = Diagnosis,
+    missing = "no", 
+    type = all_continuous() ~ "continuous2",
+    statistic = list(
+      all_continuous() ~ c("{median} ({p25}, {p75})",
+                           "{min}, {max}"),
+      all_categorical() ~ "{n} ({p})"),
+    digits = all_continuous() ~ 2  )%>%
+        add_overall(col_label = "**Total**\nN = {N}") %>% 
+  as_gt() %>%
+  gt::gtsave(filename=here("results", "2_resilience", "tables", "EXEC_followup_info.docx"))
+
+```
+
+
+
+### Plots
+
+#### MMSE - spaghetti
+
+```{r}
+
+p1 <- ggplot(datmedian_MMSE, aes(x = Time_years, y = MMSE, group = I_ID)) +
+  geom_point(size=0.5) + 
+  geom_line(alpha=0.3) +
+  labs(title = "Total sample", x = "Time (years)")
+
+
+p2 <- ggplot(datmedian_MMSE, aes(x = Time_years, y = MMSE, group = I_ID, color=Diagnosis)) +
+  geom_point(size=0.5) + 
+  geom_line(alpha=0.3) +
+  facet_grid(. ~ Diagnosis) +
+  labs(title = "By diagnosis", x = "Time (years)") +
+  theme(legend.position = "none")
+
+
+p_mmse <- cowplot::plot_grid(p1, p2, nrow=1, rel_widths = c(0.4, 1))
+
+
+ggsave(
+   filename = here("results", "2_resilience", "figures", "P2_MMSE_spaghetti.png"), 
+   p_mmse, 
+   width = 15, height = 4
+)
+```
+
+
+#### MEM - spaghetti
+
+```{r}
+
+p1 <- ggplot(datmedian_MEM, aes(x = Time_years, y = MEM, group = I_ID)) +
+  geom_point(size=0.5) + 
+  geom_line(alpha=0.3) +
+  labs(title = "Total sample", x = "Time (years)", y="Memory domain")
+
+
+p2 <- ggplot(datmedian_MEM, aes(x = Time_years, y = MEM, group = I_ID, color=Diagnosis)) +
+  geom_point(size=0.5) + 
+  geom_line(alpha=0.3) +
+  facet_grid(. ~ Diagnosis) +
+  labs(title = "By diagnosis", x = "Time (years)", y="Memory domain") +
+  theme(legend.position = "none")
+
+
+p_mem <- cowplot::plot_grid(p1, p2, nrow=1, rel_widths = c(0.4, 1))
+
+
+ggsave(
+   filename = here("results", "2_resilience", "figures", "P2_MEM_spaghetti.png"), 
+   p_mem, 
+   width = 15, height = 4
+)
+```
+
+
+#### EXEC - spaghetti
+
+```{r}
+
+p1 <- ggplot(datmedian_EXEC, aes(x = Time_years, y = EXEC, group = I_ID)) +
+  geom_point(size=0.5) + 
+  geom_line(alpha=0.3) +
+  labs(title = "Total sample", x = "Time (years)", y="Executive function")
+
+
+p2 <- ggplot(datmedian_EXEC, aes(x = Time_years, y = EXEC, group = I_ID, color=Diagnosis)) +
+  geom_point(size=0.5) + 
+  geom_line(alpha=0.3) +
+  facet_grid(. ~ Diagnosis) +
+  labs(title = "By diagnosis", x = "Time (years)", y="Executive function") +
+  theme(legend.position = "none")
+
+
+p_exec <- cowplot::plot_grid(p1, p2, nrow=1, rel_widths = c(0.4, 1))
+
+ggsave(
+   filename = here("results", "2_resilience", "figures", "P2_EXEC_spaghetti.png"), 
+   p_exec, 
+   width = 15, height = 4
+)
+
+```
+
+
+
+
+
+

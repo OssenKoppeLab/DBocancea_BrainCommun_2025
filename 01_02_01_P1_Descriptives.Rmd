@@ -1,0 +1,993 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+library(tidyverse)
+library(here)
+
+library(table1)
+
+library(gt)
+library(gtsummary)
+
+```
+
+
+## Complete-case
+
+```{r}
+# Load data
+dat <- readRDS(here("data", "processed", "Part1_dat_all.rds"))
+
+#str(dat)
+#colnames(dat)
+
+```
+
+
+```{r}
+dat %>% 
+  psych::describe(.)
+
+```
+
+
+
+### Table 1
+
+#### Table 1 across diagnoses
+
+
+```{r}
+
+# table with summed CAQ total scores
+table1_all <-
+  tbl_summary(
+    dat,
+    include = c(Age, Sex, Edu_tert, APOE_e4, A_positive, MMSE, MEM, EXEC, CAV_lifetime, CAV_past, CAV_current, FAV, ADsign_thick, WB_thick),
+    by = Diagnosis,
+    missing = "no", 
+    statistic = list(
+      all_continuous() ~ "{mean} ± {sd}",
+      all_categorical() ~ "{n} ({p})"),
+    digits = all_continuous() ~ 1  )%>%
+  add_n() %>% 
+  modify_header(label = "**Variable**")  %>% 
+  modify_header(all_stat_cols() ~ "**{level}**\nN = {n}") %>%
+  add_overall(col_label = "**Total**\nN = {N}") %>% 
+  modify_footnote(update = everything() ~ NA) %>%
+  # modify_table_styling(   # add note to specific row
+  #   columns = label,
+  #   rows = label == "MMSE",
+  #   footnote = "i.e. mmse") %>% 
+  bold_labels() %>% 
+  as_gt() %>%
+  gt::tab_header(
+    title = gt::md("**Table 1. Characteristics Amsterdam Dementia Cohort**")) %>%
+  gt::tab_source_note("Mean +/- Standard Deviation, unless specified otherwise.
+                      SCD = Subjective Cognitive Decline, 
+                      MCI = Mild Cognitive Impairment,
+                      AD = Alzheimer's disease Dementia,
+                      PPA = Primary Progressive Aphasia,
+                      FTD = Frontotemporal Neurodegeneration Dementia,
+                      DLB = Dementia with Lewy Bodies,
+                      MovD = Movement Disorders,
+                      VaD = Vascular Dementia,
+                      Dem-other = other dementias,
+                      Neuro-other = other neurological disorders,
+                      Psych = Psychiatry
+                      ")
+
+table1_all %>% 
+  gt::gtsave(filename=here("results", "1_descriptives", "tables", "Table1_across_diags_gt.docx"))
+
+```
+
+#### Table 1 - REVISIONS
+
+
+```{r}
+
+# Group some groups together to reduce the number of columns
+dat_revisions <- dat %>% 
+  mutate(Diagnosis2 = factor(case_when(Diagnosis %in% c("PPA", "FTD") ~ "FTD",
+                                Diagnosis %in% c("Dem other", "Neuro other", "Psych") ~ "Other",
+                                TRUE ~ Diagnosis), 
+                             levels=c("SCD", "MCI", "AD", "FTD", "DLB", "CBS/PSP", "VaD", "Other")), .after=Diagnosis)
+
+
+table1_all_rev <-
+  tbl_summary(
+    dat_revisions,
+    include = c(Age, Sex, Edu_tert, APOE_e4, A_positive, MMSE, MEM, EXEC, CAV_lifetime, CAV_past, CAV_current, FAV, ADsign_thick, WB_thick),
+    by = Diagnosis2,
+    missing = "no", 
+    statistic = list(
+      all_continuous() ~ "{mean} ± {sd}",
+      all_categorical() ~ "{n} ({p})"),
+    digits = all_continuous() ~ 1  )%>%
+  add_n() %>% 
+  modify_header(label = "**Variable**")  %>% 
+  modify_header(all_stat_cols() ~ "**{level}**\nN = {n}") %>%
+  add_overall(col_label = "**Total**\nN = {N}") %>% 
+  modify_footnote(update = everything() ~ NA) %>%
+  # modify_table_styling(   # add note to specific row
+  #   columns = label,
+  #   rows = label == "MMSE",
+  #   footnote = "i.e. mmse") %>% 
+  bold_labels() %>% 
+  as_gt() %>%
+  gt::tab_header(
+    title = gt::md("**Table 1. Characteristics Amsterdam Dementia Cohort**")) %>%
+  gt::tab_source_note("Mean +/- Standard Deviation, unless specified otherwise.
+                      SCD = Subjective Cognitive Decline, 
+                      MCI = Mild Cognitive Impairment,
+                      AD = Alzheimer's disease Dementia,
+                      FTD = Frontotemporal Neurodegeneration Dementia,
+                      DLB = Dementia with Lewy Bodies,
+                      MovD = Movement Disorders,
+                      VaD = Vascular Dementia,
+                      Other = other
+                      ")
+
+table1_all_rev %>% 
+  gt::gtsave(filename=here("results", "1_descriptives", "tables", "Table1_across_diags_gt_REV.docx"))
+
+
+```
+
+
+
+
+#### Table missing data
+
+```{r}
+
+table1_missings <-
+  tbl_summary(
+    dat,
+    include = c(Age, Sex, Edu_tert, APOE_e4, A_positive, MMSE, MEM, EXEC, CAV_lifetime, CAV_past, CAV_current, FAV, ADsign_thick, WB_thick),
+    by = Diagnosis,
+    missing_text = "Missing, n",
+    statistic = list(
+      all_continuous() ~ "{p_miss}",
+      all_categorical() ~ "{p_miss}"),
+    digits = all_continuous() ~ 1
+  )%>%
+  add_n() %>% 
+  modify_header(all_stat_cols() ~ "**{level}**\nN = {n}") %>%
+  add_overall(col_label = "**Total**\nN = {N}") %>% 
+  modify_footnote(update = everything() ~ NA) %>%
+  bold_labels() %>% 
+  as_gt() %>%
+  gt::tab_header(
+    title = gt::md("**Table 1. Missing values across cohort**")) %>%
+  gt::tab_source_note("Mean +/- Standard Deviation, unless specified otherwise. 
+                      SCD = Subjective Cognitive Decline, 
+                      MCI = Mild Cognitive Impairment,
+                      AD = Alzheimer's disease Dementia,
+                      PPA = Primary Progressive Aphasia,
+                      FTD = Frontotemporal Neurodegeneration Dementia,
+                      DLB = Dementia with Lewy Bodies,
+                      MovD = Movement Disorders,
+                      VaD = Vascular Dementia,
+                      Dem-other = other dementias,
+                      Neuro-other = other neurological disorders,
+                      Psych = Psychiatry
+                      ")
+
+
+table1_missings %>% 
+  gt::gtsave(filename=here("results", "1_descriptives", "tables", "Table1_across_diags_MISSING.docx"))
+
+
+```
+
+
+### Age - boxplot
+
+```{r}
+ggplot(dat, aes(x = Diagnosis, y = Age, fill=Diagnosis)) + 
+  geom_boxplot(outlier.shape = NA) + 
+  geom_jitter(shape=16, alpha=0.5, position = position_jitter(0.3), size = 0.8, color="black") +
+  theme_classic() +
+  ggeasy::easy_labs()
+
+# rain cloud plot!
+
+```
+
+
+
+### Distributions
+
+Distribution of questionnaire scores across diagnoses
+
+```{r fig.height=5, fig.width=6}
+# Distribution of questionnaire scores across diagnoses
+# ggridges
+
+p1 <- dat %>% 
+  ggplot(., aes(x= CAV_lifetime, fill = Diagnosis, y = Diagnosis)) + 
+  ggridges::geom_density_ridges(scale = 2, alpha = 0.7, 
+                      quantile_lines=TRUE,
+                      quantile_fun=function(x,...)median(x)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  scale_x_continuous(expand = c(0, 0)) +
+  theme_classic() +
+  theme(axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        legend.position = "none") +
+  ggeasy::easy_labs()
+
+p2 <- dat %>% 
+  ggplot(., aes(x= CAV_past, fill = Diagnosis, y = Diagnosis)) + 
+  ggridges::geom_density_ridges(scale = 2, alpha = 0.7, 
+                      quantile_lines=TRUE,
+                      quantile_fun=function(x,...)median(x)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  scale_x_continuous(expand = c(0, 0)) +
+  theme_classic() +
+  theme(axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        legend.position = "none") +
+  ggeasy::easy_labs()
+
+
+p3 <- dat %>% 
+  ggplot(., aes(x= CAV_current, fill = Diagnosis, y = Diagnosis)) + 
+  ggridges::geom_density_ridges(scale = 2, alpha = 0.7, 
+                      quantile_lines=TRUE,
+                      quantile_fun=function(x,...)median(x)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  scale_x_continuous(expand = c(0, 0)) +
+  theme_classic() +
+  theme(axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        legend.position = "none") +
+  ggeasy::easy_labs()
+
+
+p4 <- dat %>% 
+  ggplot(., aes(x= FAV, fill = Diagnosis, y = Diagnosis)) + 
+  ggridges::geom_density_ridges(scale = 2, alpha = 0.7, 
+                      quantile_lines=TRUE,
+                      quantile_fun=function(x,...)median(x)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  scale_x_continuous(expand = c(0, 0)) +
+  theme_classic() +
+  theme(axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        legend.position = "none") +
+  ggeasy::easy_labs()
+
+
+# extract a legend that is laid out horizontally
+legend_p1 <- cowplot::get_legend(
+  p1 + 
+    guides(fill = guide_legend(reverse = TRUE)) +
+    theme(legend.position = "right")
+)
+
+prow <- cowplot::plot_grid(p1, p2, p3, p4,
+                   labels="AUTO", align = "v",
+                   nrow = 2, ncol = 2)
+
+# tiff(here("results", "1_descriptives", "CR_descriptives_per_cohort.tiff"), width = 250, height = 300,
+#      units = 'mm', res = 400)
+
+cowplot::plot_grid(prow, legend_p1, ncol = 2, rel_widths = c(1, .2))
+
+# dev.off()
+
+
+
+```
+
+```{r fig.height=10, fig.width=10}
+# Distribution of questionnaire scores across diagnoses
+# boxplot
+
+p1 <- dat %>% 
+  ggplot(., aes(y= CAV_lifetime, color = Diagnosis, x = Diagnosis)) + 
+  geom_jitter(shape=16, position = position_jitter(0.3), size = 0.7, alpha=0.6, color="dark gray") +
+  geom_boxplot(outlier.shape = NA, alpha=0, lwd=0.7) + 
+  ggeasy::easy_labs() +
+  theme_classic() +
+  #scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  theme(axis.ticks.x = element_blank(),
+        legend.position = "none") +
+  ggeasy::easy_labs()
+
+p2 <- dat %>% 
+  ggplot(., aes(y= CAV_past, color = Diagnosis, x = Diagnosis)) + 
+  geom_jitter(shape=16, position = position_jitter(0.3), size = 0.7, alpha=0.6, color="dark gray") +
+  geom_boxplot(outlier.shape = NA, alpha=0, lwd=0.7) + 
+  ggeasy::easy_labs() +
+  theme_classic() +
+  #scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  theme(axis.ticks.x = element_blank(),
+        legend.position = "none") +
+  ggeasy::easy_labs()
+
+
+p3 <- dat %>% 
+  ggplot(., aes(y= CAV_current, color = Diagnosis, x = Diagnosis)) + 
+  geom_jitter(shape=16, position = position_jitter(0.3), size = 0.7, alpha=0.6, color="dark gray") +
+  geom_boxplot(outlier.shape = NA, alpha=0, lwd=0.7) + 
+  ggeasy::easy_labs() +
+  theme_classic() +
+  #scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  theme(axis.ticks.x = element_blank(),
+        legend.position = "none") +
+  ggeasy::easy_labs()
+
+
+p4 <- dat %>% 
+  ggplot(., aes(y= FAV, color = Diagnosis, x = Diagnosis)) + 
+  geom_jitter(shape=16, position = position_jitter(0.3), size = 0.7, alpha=0.6, color="dark gray") +
+  geom_boxplot(outlier.shape = NA, alpha=0, lwd=0.7) + 
+  ggeasy::easy_labs() +
+  theme_classic() +
+  #scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  theme(axis.ticks.x = element_blank(),
+        legend.position = "none") +
+  ggeasy::easy_labs()
+
+
+# extract a legend that is laid out horizontally
+legend_p1 <- cowplot::get_legend(
+  p1 + 
+    guides(color = guide_legend(reverse = TRUE)) +
+    theme(legend.position = "right")
+)
+
+prow <- cowplot::plot_grid(p1, p2, p3, p4,
+                   labels="AUTO", align = "v",
+                   nrow = 2, ncol = 2)
+
+# tiff(here("results", "descriptives", "CR_descriptives_per_cohort.tiff"), width = 250, height = 300,
+#      units = 'mm', res = 400)
+
+cowplot::plot_grid(prow, legend_p1, ncol = 2, rel_widths = c(1, .2))
+
+# dev.off()
+
+
+
+```
+
+
+
+## Mids
+
+```{r}
+# load data
+datmids <- readRDS(file = here("data", "processed", "Part1_datmids_all.rds"))
+
+datimp <- mice::complete(datmids, action="long", include = FALSE)
+
+```
+
+
+### Descriptive statistics of variables
+
+(akin to table 1 but with imputed datasets)
+
+
+Compute descriptive statistics in each complete imputed dataset and use Rubin's rules to pool the statistics and compute their standard errors. 
+
+https://www.bookdown.org/rwnahhas/RMPH/mi-descriptives.html  --> good explanation of Rubin's rule
+https://nerler.github.io/EP16_Multiple_Imputation/practical/05_Working_with_Imputed_Data_in_Different_Formats.html
+
+
+https://bookdown.org/mwheymans/bookmi/data-analysis-after-multiple-imputation.html
+
+
+```{r}
+
+
+# pool means and sd-s of continuous variables (just average, no Rubin's rule here for the SDs) - per diagnosis
+datimp %>% 
+  tbl_summary(., include = c("MMSE", "MEM", "EXEC", "CAV_lifetime", "CAV_past", "CAV_current", "FAV"), by = Diagnosis,
+    missing = "no", 
+    statistic = list(
+      all_continuous() ~ "{mean} ± {sd}",
+      all_categorical() ~ "{n} ({p})"),
+    digits = all_continuous() ~ 1  )%>%
+  add_n() %>% 
+  modify_header(label = "**Variable**")  %>% 
+  modify_header(all_stat_cols() ~ "**{level}**\nN = {n}") %>%
+  add_overall(col_label = "**Total**\nN = {N}") %>% 
+  as_gt() %>% 
+  gt::gtsave(filename=here("results", "1_descriptives", "tables", "Table1_across_diags_MIDS_pooled_cont.docx"))
+
+
+# Summarize percentage for categorical variables
+
+# declare function to extract mode
+calculate_mode <- function(x) {
+  uniqx <- unique(x)
+  uniqx[which.max(tabulate(match(x, uniqx)))] }
+
+
+pooled_N_factors <- datimp %>% 
+  select(.id, Sex, Edu_tert, APOE_e4, Diagnosis) %>% 
+  group_by(.id) %>% 
+  summarise_all(.funs = calculate_mode)
+
+
+pooled_N_factors %>% 
+  tbl_summary(., include = c(Edu_tert, APOE_e4), by = Diagnosis,
+    missing = "no", 
+    statistic = list(
+      all_continuous() ~ "{mean} ± {sd}",
+      all_categorical() ~ "{n} ({p})"),
+    digits = all_continuous() ~ 1  )%>%
+  add_n() %>% 
+  modify_header(label = "**Variable**")  %>% 
+  modify_header(all_stat_cols() ~ "**{level}**\nN = {n}") %>%
+  add_overall(col_label = "**Total**\nN = {N}") %>% 
+  as_gt() %>% 
+  gt::gtsave(filename=here("results", "1_descriptives", "tables", "Table1_across_diags_MIDS_pooled_factors.docx"))
+
+```
+
+
+## Median
+
+
+
+```{r}
+# Load data
+
+dat_median <- readRDS(file = here("data", "processed", "Part1_dat_median_all.rds"))
+
+```
+
+
+```{r}
+#MetBrewer::met.brewer("Signac", n=12, type = "discrete")
+#MoMAColors::moma.colors("Ohchi", n=5, type="discrete")
+
+# Ohchi
+# "#582851"  "#40606d"   "#69a257"   "#e3d19c"   "#c4024d"  
+
+palette <- c("SCD" = "#582851",
+             "MCI" = "#7E3873",
+             "AD"  = "#B355A5",
+             
+             "PPA" = "#40606d",
+             "FTD" = "#779FAF" ,
+             
+             "DLB"  = "#3A5A30",
+             "MovD" = "#69a257",
+             
+             "VaD" = "#e3d19c",
+             
+             "Dem - other"   = "#c4024d",
+             "Neuro - other" = "#8D0137",
+             
+             "Psych" = "#C4A102")
+
+```
+
+
+### Correlations
+
+
+```{r}
+dat_median %>% 
+  ggplot(., aes(x = CAV_past, y = CAV_current)) + 
+  geom_point(size = 0.8, alpha = .3) +
+  geom_smooth(method="lm") +
+  ggeasy::easy_labs() +
+  scale_fill_manual(values=palette) +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+```
+
+
+### Demographics by DIAG
+
+#### Diag ~ Age 
+
+```{r}
+
+# Boxplot
+# dat_median %>% 
+#   ggplot(., aes(x = Diagnosis, y = Age, fill=Diagnosis)) + 
+#   geom_boxplot(outlier.shape = NA, alpha=0.8) + 
+#   geom_jitter(shape=16, alpha=0.5, position = position_jitter(0.3), size = 0.8, color="black") +
+#   ggeasy::easy_labs() +
+#   scale_fill_manual(values=palette) +
+#   scale_x_discrete(guide = guide_axis(angle = 25))
+# 
+# 
+# # Raincloud plot
+# dat_median %>% 
+#   ggplot(., aes(x = Diagnosis, y = Age, fill=Diagnosis)) + 
+#   ggdist::stat_halfeye(adjust = .5, width = .7, .width = 0.1, justification = -.4, point_colour = NA) + 
+#   geom_boxplot(width = .25, outlier.shape = NA, alpha=0.7) +
+#   geom_point(size = 0.8, alpha = .3, position = position_jitter(width = .1))  +
+#   ggeasy::easy_labs() +
+#   scale_fill_manual(values=palette) +
+#   scale_x_discrete(guide = guide_axis(angle = 25))
+
+
+# Raincloud with cloud to the side
+dat_median %>% 
+  ggplot(., aes(x = Diagnosis, y = Age, fill=Diagnosis)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  #geom_point(size = 0.8, alpha = .3, position = position_jitter(width = .1))  +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_fill_manual(values=palette) +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+```
+
+
+#### Diag ~ Cognition
+
+```{r}
+
+dat_median %>% 
+  ggplot(., aes(x = Diagnosis, y = MMSE, fill=Diagnosis)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_fill_manual(values=palette) +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+# Raincloud with cloud to the side
+dat_median %>% 
+  ggplot(., aes(x = Diagnosis, y = MEM, fill=Diagnosis)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_fill_manual(values=palette) +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+# Raincloud with cloud to the side
+dat_median %>% 
+  ggplot(., aes(x = Diagnosis, y = EXEC, fill=Diagnosis)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_fill_manual(values=palette) +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+```
+
+
+#### Diag ~ Edu
+
+```{r}
+
+dat_median %>% 
+  ggplot(., aes(x=Diagnosis, fill=Edu_tert)) +
+  geom_bar(aes(fill = Diagnosis, alpha=Edu_tert), stat="count", position="fill") +
+  labs(x = "Diagnosis", y = "Proportion") +
+  theme(legend.position = "bottom") +
+  scale_fill_manual(values=palette) +
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  scale_y_continuous(labels=scales::percent)
+  
+```
+
+
+#### Diag ~ Sex
+
+```{r}
+
+dat_median %>% 
+  ggplot(., aes(x=Diagnosis, fill=Sex)) +
+  geom_bar(aes(fill = Diagnosis, alpha=Sex), stat="count", position="fill") +
+  labs(x = "Diagnosis", y = "Proportion") +
+  theme(legend.position = "bottom") +
+  scale_fill_manual(values=palette) +
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  scale_y_continuous(labels=scales::percent)
+  
+```
+
+
+#### Diag ~ APOE
+
+```{r}
+
+dat_median %>% 
+  ggplot(., aes(x=Diagnosis, fill=APOE_e4)) +
+  geom_bar(aes(fill = Diagnosis, alpha=APOE_e4), stat="count", position="fill") +
+  labs(x = "Diagnosis", y = "Proportion") +
+  theme(legend.position = "bottom") +
+  scale_fill_manual(values=palette) +
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  scale_y_continuous(labels=scales::percent)
+
+dat_median %>% 
+  ggplot(., aes(x=Diagnosis, fill=APOE)) +
+  geom_bar(aes(fill = Diagnosis, alpha=APOE), stat="count", position="fill") +
+  labs(x = "Diagnosis", y = "Proportion") +
+  theme(legend.position = "bottom") +
+  scale_fill_manual(values=palette) +
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  scale_y_continuous(labels=scales::percent)
+
+
+dat_median %>% 
+  ggplot(., aes(x=Diagnosis, fill=APOE_grouped)) +
+  geom_bar(aes(fill = Diagnosis, alpha=APOE_grouped), stat="count", position="fill") +
+  labs(x = "Diagnosis", y = "Proportion") +
+  theme(legend.position = "bottom") +
+  scale_fill_manual(values=palette) +
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  scale_y_continuous(labels=scales::percent)
+  
+```
+
+
+### Questionnaires by...
+
+#### by Diagnosis
+
+Unadjusted plots
+
+```{r} 
+
+# Raincloud with cloud to the side
+dat_median %>% 
+  ggplot(., aes(x = Diagnosis, y = CAV_lifetime, fill=Diagnosis)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_fill_manual(values=palette) +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+
+dat_median %>% 
+  ggplot(., aes(x = Diagnosis, y = CAV_past, fill=Diagnosis)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_fill_manual(values=palette) +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+
+dat_median %>% 
+  ggplot(., aes(x = Diagnosis, y = CAV_current, fill=Diagnosis)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_fill_manual(values=palette) +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+
+dat_median %>% 
+  ggplot(., aes(x = Diagnosis, y = FAV, fill=Diagnosis)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_fill_manual(values=palette) +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+```
+
+##### FIG Supplemental
+
+```{r}
+
+# Supplemental figure
+
+
+# CAV_past ~ Diag
+(plot_DIAG_CAV_past <- dat_median %>% 
+   ggplot(., aes(x = Diagnosis, y = CAV_past, fill=Diagnosis)) + 
+   ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+   geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+   gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+   ggeasy::easy_labs() +
+   labs(y = "CAQ past score",
+        x = "",
+        title = "CAQ past") + 
+   scale_fill_manual(values=palette) +
+   scale_x_discrete(guide = guide_axis(angle = 25)) + 
+   #ylim(20, 100) +
+   theme(legend.position="none")
+ 
+)
+
+(plot_DIAG_CAV_current <- dat_median %>% 
+   ggplot(., aes(x = Diagnosis, y = CAV_current, fill=Diagnosis)) + 
+   ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+   geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+   gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+   ggeasy::easy_labs() +
+   labs(y = "CAQ current score",
+        x = "",
+        title = "CAQ current") + 
+   scale_fill_manual(values=palette) +
+   scale_x_discrete(guide = guide_axis(angle = 25)) + 
+   #ylim(5, 25) +
+       theme(legend.position="none")
+
+)
+
+
+figure <- cowplot::plot_grid(plot_DIAG_CAV_past, 
+                              plot_DIAG_CAV_current, 
+                              nrow = 2, labels = c('A', 'B'))
+
+
+tiff(here("results", "1_descriptives", "Supplemental_CAV_past_current.tiff"), width = 150, height = 180,
+      units = 'mm', res = 400)
+figure
+dev.off()
+```
+
+
+#### by Sex
+
+Unadjusted plots
+
+```{r} 
+
+# Raincloud with cloud to the side
+dat_median %>% 
+  ggplot(., aes(x = Sex, y = CAV_lifetime, fill=Sex)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+
+dat_median %>% 
+  ggplot(., aes(x = Sex, y = CAV_past, fill=Sex)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+
+dat_median %>% 
+  ggplot(., aes(x = Sex, y = CAV_current, fill=Sex)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+
+dat_median %>% 
+  ggplot(., aes(x = Sex, y = FAV, fill=Sex)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+```
+
+
+
+Strata by diagnosis
+
+```{r fig.height=6, fig.width=12}
+
+dat_median %>% 
+  ggplot(., aes(x = Sex, y = CAV_lifetime, fill=Diagnosis, alpha=Sex)) + 
+  #ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  facet_grid(cols = vars(Diagnosis)) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  scale_fill_manual(values=palette) + 
+  scale_alpha_discrete(range=c(0.4, 1))
+
+
+dat_median %>% 
+  ggplot(., aes(x = Sex, y = CAV_past, fill=Diagnosis, alpha=Sex)) + 
+  #ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  facet_grid(cols = vars(Diagnosis)) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  scale_fill_manual(values=palette) + 
+  scale_alpha_discrete(range=c(0.4, 1))
+
+
+dat_median %>% 
+  ggplot(., aes(x = Sex, y = CAV_current, fill=Diagnosis, alpha=Sex)) + 
+  #ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  facet_grid(cols = vars(Diagnosis)) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  scale_fill_manual(values=palette) + 
+  scale_alpha_discrete(range=c(0.4, 1))
+
+
+dat_median %>% 
+  ggplot(., aes(x = Sex, y = FAV, fill=Diagnosis, alpha=Sex)) + 
+  #ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  facet_grid(cols = vars(Diagnosis)) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  scale_fill_manual(values=palette) + 
+  scale_alpha_discrete(range=c(0.4, 1))
+
+
+```
+
+
+
+#### by Edu
+
+Unadjusted plots
+
+```{r} 
+
+# Raincloud with cloud to the side
+dat_median %>% 
+  ggplot(., aes(x = Edu_tert, y = CAV_lifetime, fill=Edu_tert)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+
+dat_median %>% 
+  ggplot(., aes(x = Edu_tert, y = CAV_past, fill=Edu_tert)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+
+dat_median %>% 
+  ggplot(., aes(x = Edu_tert, y = CAV_current, fill=Edu_tert)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+
+dat_median %>% 
+  ggplot(., aes(x = Edu_tert, y = FAV, fill=Edu_tert)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+```
+
+
+
+```{r fig.height=6, fig.width=12}
+
+dat_median %>% 
+  ggplot(., aes(x = Edu_tert, y = CAV_lifetime, fill=Diagnosis, alpha=Edu_tert)) + 
+  #ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  facet_grid(cols = vars(Diagnosis)) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  scale_fill_manual(values=palette) 
+  #scale_alpha_discrete(range=c(0.3, 0.6, 1))
+
+
+dat_median %>% 
+  ggplot(., aes(x = Edu_tert, y = CAV_past, fill=Diagnosis, alpha=Edu_tert)) + 
+  #ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  facet_grid(cols = vars(Diagnosis)) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  scale_fill_manual(values=palette) 
+  #scale_alpha_discrete(range=c(0.3, 0.6, 1))
+
+
+dat_median %>% 
+  ggplot(., aes(x = Edu_tert, y = CAV_current, fill=Diagnosis, alpha=Edu_tert)) + 
+  #ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  facet_grid(cols = vars(Diagnosis)) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  scale_fill_manual(values=palette) 
+  #scale_alpha_discrete(range=c(0.3, 0.6, 1))
+
+
+dat_median %>% 
+  ggplot(., aes(x = Edu_tert, y = FAV, fill=Diagnosis, alpha=Edu_tert)) + 
+  #ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  facet_grid(cols = vars(Diagnosis)) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  scale_fill_manual(values=palette)
+  #scale_alpha_discrete(range=c(0.3, 0.6, 1))
+
+
+```
+
+
+#### by APOE
+
+Unadjusted plots
+
+```{r} 
+
+# Raincloud with cloud to the side
+dat_median %>% 
+  ggplot(., aes(x = APOE_grouped, y = CAV_lifetime, fill=APOE_grouped)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+
+dat_median %>% 
+  ggplot(., aes(x = APOE_grouped, y = CAV_past, fill=APOE_grouped)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+
+dat_median %>% 
+  ggplot(., aes(x = APOE_grouped, y = CAV_current, fill=APOE_grouped)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+
+dat_median %>% 
+  ggplot(., aes(x = APOE_grouped, y = FAV, fill=APOE_grouped)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+  gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+  ggeasy::easy_labs() +
+  scale_x_discrete(guide = guide_axis(angle = 25))
+
+```
+
+
+
+
+

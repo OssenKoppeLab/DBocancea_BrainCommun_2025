@@ -1,0 +1,282 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+
+library(tidyverse)
+library(here)
+
+library(survival)
+library(survminer)
+
+theme_set(theme_classic())
+
+```
+
+
+```{r}
+
+# Load median dataset
+datmedian <- readRDS(file = here("data", "processed", "Part3_ADcont_dat_median.rds"))
+
+
+datmedian <- datmedian %>% 
+  mutate(CAV_lifetime_split = as.factor(if_else(CAV_lifetime < median(CAV_lifetime), 0, 1)),
+         CAV_past_split     = if_else(CAV_past < median(CAV_past), 0, 1),
+         CAV_current_split  = if_else(CAV_current < median(CAV_current), 0, 1),
+         FAV_split          = if_else(FAV < median(FAV), 0, 1)
+         )
+
+
+datmedian_MCI <- datmedian %>% 
+  filter(Diagnosis == "MCI")
+
+datmedian_AD <- datmedian %>% 
+  filter(Diagnosis == "AD")
+
+```
+
+
+
+## Figure 4
+
+### Conversion Lifetime CAV in total sample
+
+```{r}
+
+## CONVERSION 
+
+mean(datmedian$CAV_lifetime) - 1.5*sd(datmedian$CAV_lifetime)
+mean(datmedian$CAV_lifetime) + 1.5*sd(datmedian$CAV_lifetime)
+
+res.cox_conv <- coxph(Surv(Time_conv, Conv) ~ TP_thick + CAV_lifetime + Age + Sex, data = datmedian)
+#summary(res.cox_conv)
+
+# plot total survival curve to get the numbers of the table
+p_CAV_conv_tab <- ggsurvfit::survfit2(Surv(Time_conv, Conv) ~ 1, data = datmedian) %>% 
+  ggsurvfit::ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "Total sample"
+    ) + 
+  ggsurvfit::add_confidence_interval() +
+  ggsurvfit::add_risktable() +
+  scale_x_continuous(expand=c(0, 1), limits = c(0, 8), breaks = seq(0, 8, 2))
+
+p_CAV_conv_tab
+
+
+
+# Use cox model to predict adjusted curves
+pred_CAV_conv <- ggeffects::ggpredict(res.cox_conv, c("CAV_lifetime[1.8, 3.6]"), type = "survival")
+plot(pred_CAV_conv)
+
+
+p_CAV_conv <- pred_CAV_conv %>% 
+  filter(x < 8.1) %>% 
+  ggplot(., aes(x=x, y=predicted)) +
+  geom_line(aes(linetype=group), linewidth=1, color = "black") +
+  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, group = group), fill = "black", linetype=0, alpha=0.1) +
+  labs(y = "Conversion probability",
+       x = "Time (years)",     
+       title = "Probability of progressing in AD continuum sample") +
+  scale_linetype_manual(values=c("1.8" = "solid", "3.6" = "dotted"), 
+                        name="Lifetime CAQ score", 
+                        labels=c("Low (Mean-1.5*SD)", "High (Mean+1.5*SD)")) +
+  theme(legend.position = c(0.02, 0.02),
+        legend.justification = c(0, 0),
+        plot.title = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14)
+  ) +
+  annotate(geom = "text", 
+           label="HR: 1.03, p = 0.81", 
+           x = 0, y = 0.3, hjust=0, size = 5) 
+
+p_CAV_conv
+
+
+```
+
+
+### Mortality FAV in AD
+
+```{r}
+
+# FAV in AD
+
+# mean plus/minus 1SD
+mean(datmedian_AD$FAV) - 1.5*sd(datmedian_AD$FAV)
+mean(datmedian_AD$FAV) + 1.5*sd(datmedian_AD$FAV)
+
+res.cox <- coxph(Surv(Time_mort, Died) ~ TP_thick + FAV + Age + Sex, data =  datmedian_AD)
+#summary(res.cox)
+
+p_FAV_tab <- ggsurvfit::survfit2(Surv(Time_mort, Died) ~ 1, data = datmedian_AD) %>% 
+  ggsurvfit::ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "AD"
+    ) + 
+  ggsurvfit::add_confidence_interval() +
+  ggsurvfit::add_risktable() +
+  scale_x_continuous(expand=c(0, 1), limits = c(0, 8), breaks = seq(0, 8, 2))
+
+p_FAV_tab
+
+
+
+pred_FAV <- ggeffects::ggpredict(res.cox, c("FAV[30, 254]"), type = "survival")
+plot(pred_FAV)
+
+
+p_FAV <- pred_FAV %>% 
+  filter(x < 8) %>% 
+  ggplot(., aes(x=x, y=predicted)) +
+  geom_line(aes(linetype=group), linewidth=1, color = "#B355A5") +
+  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, group = group), fill = "#B355A5", linetype=0, alpha=0.1) +
+  labs(y = "Survival probability",
+        x = "Time (years)",     
+        title = "Probability of survival in AD") +
+  scale_linetype_manual(values=c("30" = "solid", "254" = "dotted"), 
+                        name="PASE score", 
+                        labels=c("Low (Mean-1.5*SD)", "High (Mean+1.5*SD)")) +
+ theme(legend.position = c(0.02, 0.02),
+        legend.justification = c(0, 0),
+        plot.title = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14)
+  ) +
+  annotate(geom = "text", 
+           label="HR: 0.87, p = 0.03", 
+           x = 0, y = 0.3, hjust=0, size = 5) 
+
+
+p_FAV
+
+
+```
+### Mortality past CAQ in MCI
+
+```{r}
+
+# CAV past in MCI
+
+# mean plus/minus 1SD
+mean(datmedian_MCI$CAV_past) - 1.5*sd(datmedian_MCI$CAV_past)
+mean(datmedian_MCI$CAV_past) + 1.5*sd(datmedian_MCI$CAV_past)
+
+res.cox <- coxph(Surv(Time_mort, Died) ~ TP_thick + CAV_past + Age + Sex, data =  datmedian_MCI)
+#summary(res.cox)
+
+p_pastCAV_tab <- ggsurvfit::survfit2(Surv(Time_mort, Died) ~ 1, data = datmedian_MCI) %>% 
+  ggsurvfit::ggsurvfit() +
+  labs(
+    x = "Years",
+    y = "Overall survival probability",
+    title = "MCI" ) + 
+  ggsurvfit::add_confidence_interval() +
+  ggsurvfit::add_risktable() +
+  scale_x_continuous(expand=c(0, 1), limits = c(0, 8), breaks = seq(0, 8, 2))
+
+p_pastCAV_tab
+
+
+
+pred_CAV_past <- ggeffects::ggpredict(res.cox, c("CAV_past[1.8, 3.6]"), type = "survival")
+plot(pred_CAV_past)
+
+
+p_past_CAV <- pred_CAV_past %>% 
+  filter(x < 8) %>% 
+  ggplot(., aes(x=x, y=predicted)) +
+  geom_line(aes(linetype=group), linewidth=1, color = "#7E3873") +
+  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, group = group), fill = "#7E3873", linetype=0, alpha=0.1) +
+  labs(y = "Survival probability",
+       x = "Time (years)",     
+       title = "Probability of survival in MCI") +
+  scale_linetype_manual(values=c("1.8" = "solid", "3.6" = "dotted"), 
+                        name="Past CAQ score", 
+                        labels=c("Low (Mean-1.5*SD)", "High (Mean+1.5*SD)")) +
+   theme(legend.position = c(0.02, 0.02),
+        legend.justification = c(0, 0),
+        plot.title = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14)
+  ) +
+  annotate(geom = "text", 
+           label="HR: 0.54, p < 0.01", 
+           x = 0, y = 0.3, hjust=0, size = 5) 
+
+
+p_past_CAV
+
+
+```
+
+
+
+
+### Save Figure
+
+```{r}
+
+
+figure4 <- cowplot::plot_grid(p_CAV_conv,
+                              p_FAV,
+                              p_past_CAV, 
+                              nrow = 1, labels = c('A', 'B', 'C'),
+                              align = "hv", 
+                              axis = "tblr"
+                              )
+
+
+tiff(here("results", "3_mortality", "Figure4_manuscript_rev.tiff"), width = 450, height = 150,
+      units = 'mm', res = 400)
+figure4
+dev.off()
+
+# 
+# pdf(here("results", "3_mortality", "Figure4_manuscript.pdf"), width = 10, height = 7)
+# figure4
+# dev.off()
+
+## Save the plots with the tables
+
+tiff(here("results", "3_mortality", "Table_panelA.tiff"), width = 200, height = 200,
+      units = 'mm', res = 400)
+p_CAV_conv_tab
+dev.off()
+
+tiff(here("results", "3_mortality", "Table_panelB.tiff"), width = 200, height = 200,
+      units = 'mm', res = 400)
+p_FAV_tab
+dev.off()
+
+tiff(here("results", "3_mortality", "Table_panelC.tiff"), width = 200, height = 200,
+      units = 'mm', res = 400)
+p_pastCAV_tab
+dev.off()
+
+
+
+
+```
+
+
+
+
+
+
+
+

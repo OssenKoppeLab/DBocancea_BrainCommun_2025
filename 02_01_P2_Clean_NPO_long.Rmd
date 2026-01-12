@@ -1,0 +1,275 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+```{r}
+library(here)
+library(dplyr)
+library(readxl)
+library(ggplot2)
+library(openxlsx)
+```
+
+
+### Cognitive domains
+  
+Tests per domain (25 tests in total, over 5 domains):
+
+Memory
+
+  - sum(N_VATA1, N_VATA2)
+  - sum(N_15WT1, N_15WT2, N_15WT3, N_15WT4, N_15WT5)
+  - N_15WTui
+
+  
+Executive
+
+  - N_CRach
+  - ## V_FAB   (I don't have this one in this dataset! -  should request if we want it)
+  - N_Strt3
+  - N_TMTBt
+  - sum(N_FLD, N_FLA, N_FLT)
+  
+
+
+
+```{r}
+# load latest updated file from 24-11-2023
+dat <- readxl::read_excel(here("data", "raw","551_cog_reserve_activity_DBo_20231124_Long.xlsx"), col_names = T)
+
+
+# Select only participants on AD continuum (the IDs of participants that pass our inclusion)
+dat_ADcont <- read.csv(here("data","processed", "data_ADcont_atQbaseline.csv"))
+dat <- dat %>% 
+  filter(I_ID %in% dat_ADcont$I_ID) %>% 
+  left_join(., dat_ADcont[,c("I_ID", "D_Q_grouped")], by="I_ID")
+
+cogtests <- c("V_MMSE",
+              
+              "N_VATA1", "N_VATA2",
+              "N_15WT1", "N_15WT2", "N_15WT3", "N_15WT4", "N_15WT5",
+              "N_15WTui", 
+              
+              "N_CRach",
+              "N_Strt3",
+              "N_TMTBt",
+              "N_FLD", "N_FLA", "N_FLT"
+            
+              )
+
+```
+
+
+```{r}
+dat %>%
+  select(cogtests) %>% 
+  psych::describe(.)
+```
+
+
+
+```{r}
+# 1) Deal with 997, 998, 999 NA scores in all tests that we use
+
+# Convert 997, 998 and 999 to NA in the NPO file
+# From Juhan's P2 code:
+#   999 aborted, patient doesn't understand instructions
+#   998 aborted, patient refuses test
+#   997 not administered
+# 9999 etc. for typos
+
+dat <- dat %>% 
+  mutate(across(all_of(cogtests), ~ifelse(. %in% c(999, 9999), NA, .))) %>% 
+  mutate(across(all_of(cogtests), ~ifelse(. %in% c(998, 9998), NA, .))) %>% 
+  mutate(across(all_of(cogtests), ~ifelse(. %in% c(997, 9997), NA, .))) %>% 
+  mutate(V_MMSE = ifelse(V_MMSE %in% c(999, 99), NA, V_MMSE))
+
+dat %>%
+  select(cogtests) %>% 
+  psych::describe(.)
+```
+
+```{r}
+  
+# 2) Check for impossible values of 0, change to NA (for TMTA, TMTB or Stroop tests) 
+dat <- dat %>% mutate (N_TMTAt = ifelse(N_TMTAt == "0", NA, N_TMTAt),
+                       N_TMTBt = ifelse(N_TMTBt == "0", NA, N_TMTBt),
+                       N_Strt3 = ifelse(N_Strt3 == "0", NA, N_Strt3)
+                       )
+```
+
+
+
+
+```{r}
+# 3) Create average TMTB/TMTA ratios for every diagnostic group
+tmtba_ratio_SCD <- mean(dat$N_TMTBt[dat$D_Q_grouped == "SCD"], na.rm = T) / mean(dat$N_TMTAt[dat$D_Q_grouped == "SCD"], na.rm = T)
+tmtba_ratio_MCI <- mean(dat$N_TMTBt[dat$D_Q_grouped == "MCI"], na.rm = T) / mean(dat$N_TMTAt[dat$D_Q_grouped == "MCI"], na.rm = T)
+tmtba_ratio_AD  <- mean(dat$N_TMTBt[dat$D_Q_grouped == "AD"], na.rm = T) / mean(dat$N_TMTAt[dat$D_Q_grouped == "AD"], na.rm = T)
+
+
+# 4) Create TMTB values for patients with available TMTA's based on average values per diagnostic group
+
+dat$N_TMTBt_imputed <- NA
+
+for(i in 1:dim(dat)[1]) {
+  if (is.na(dat$N_TMTBt[i])) {
+    if (dat$D_Q_grouped[i] == "SCD") {
+        dat$N_TMTBt_imputed[i] <- tmtba_ratio_SCD * dat$N_TMTAt[i]}
+    else if (dat$D_Q_grouped[i] == "MCI") {
+        dat$N_TMTBt_imputed[i] <- tmtba_ratio_MCI * dat$N_TMTAt[i]}
+    else if (dat$D_Q_grouped[i] == "AD") {
+        dat$N_TMTBt_imputed[i] <- tmtba_ratio_AD * dat$N_TMTAt[i]}
+    else {
+        "error"}
+  } else {
+    dat$N_TMTBt_imputed[i] = dat$N_TMTBt[i]
+    }
+}
+
+```
+
+
+```{r}
+# 5) Introduce time cutoffs for Stroop and TMT tests
+dat <- dat %>% mutate (N_TMTBt = ifelse(N_TMTBt_imputed > 500, 500, N_TMTBt_imputed),
+                       N_Strt3 = ifelse(N_Strt3 > 500, 500, N_Strt3))
+```
+
+
+
+```{r}
+# 6) Sum  scores to create summed tests
+                    
+dat <- dat %>% 
+  mutate (VATAtot = N_VATA1 + N_VATA2,
+          W15Ttot = N_15WT1 + N_15WT2 + N_15WT3 + N_15WT4 + N_15WT5,
+          FLDAT = N_FLD + N_FLA + N_FLT)
+```
+
+
+```{r}
+# 7) z-score each test
+# 8) invert scores so that higher values mean better performance
+
+# z-score with respect to mean and sd of the reference group (import values of reference group)
+cu_tests <- read.csv(here("data", "raw", "NPO_reference_group_descriptives.csv"), row.names = 1) 
+
+
+dat <- dat %>% mutate (#Memory
+                       Z_VATAtot = (VATAtot - cu_tests["VATAtot", "Mean"]) / cu_tests["VATAtot", "SD"] ,        
+                       Z_W15Ttot = (W15Ttot - cu_tests["W15Ttot", "Mean"]) / cu_tests["W15Ttot", "SD"],
+                       Z_N_15WTui  = (N_15WTui - cu_tests["N_15WTui", "Mean"]) / cu_tests["N_15WTui", "SD"],
+                       
+                       #Executive
+                       Z_N_CRach = (N_CRach - cu_tests["N_CRach", "Mean"]) / cu_tests["N_CRach", "SD"], 
+                       Z_N_Strt3 = (N_Strt3 - cu_tests["N_Strt3", "Mean"]) / cu_tests["N_Strt3", "SD"] *-1,
+                       Z_N_TMTBt = (N_TMTBt - cu_tests["N_TMTBt", "Mean"]) / cu_tests["N_TMTBt", "SD"] *-1,
+                       Z_FLDAT = (FLDAT - cu_tests["FLDAT", "Mean"]) / cu_tests["FLDAT", "SD"]
+                      )
+
+```
+
+
+```{r}
+# Check z-scored test histograms
+
+z_tests <- names(dat)[grepl("Z_", names(dat))]
+
+# #Check which tests are skewed
+library(tidyr)
+dat %>%
+  select(all_of(z_tests), "V_MMSE") %>%
+  #keep(is.numeric) %>%
+  tidyr::gather() %>%
+  ggplot(aes(value)) +
+    facet_wrap(~ key, scales = "free") +
+    geom_histogram()
+
+```
+
+
+```{r}
+# Plot scatter plot matrix to ensure all tests go in same direction
+# dat %>%
+#   select(all_of(z_tests)) %>%
+#   select(c(1:5)) %>%
+#   pairs(.)
+
+dat %>%
+  select(all_of(z_tests)) %>%
+  cor(., method = "pearson", use = "complete.obs")
+```
+
+
+
+```{r}
+# 9) create composite domains (if at least 2 tests available per domain)
+
+### Count available tests for every domain composite score, for creating z-scores. the function adds 1 for every test score not NA per cog domain 
+dat$n_mem <- 0
+dat$n_exec <- 0
+
+count_available_tests <- function (x,y) (ifelse(!is.na(x), y+1, y+0))
+
+dat$n_mem <- mapply(count_available_tests, dat$Z_VATAtot, dat$n_mem)
+dat$n_mem <- mapply(count_available_tests, dat$Z_W15Ttot, dat$n_mem)
+dat$n_mem <- mapply(count_available_tests, dat$Z_N_15WTui, dat$n_mem)
+
+dat$n_exec <- mapply(count_available_tests, dat$Z_N_CRach, dat$n_exec)
+dat$n_exec <- mapply(count_available_tests, dat$Z_N_Strt3, dat$n_exec)
+dat$n_exec <- mapply(count_available_tests, dat$Z_N_TMTBt, dat$n_exec)
+dat$n_exec <- mapply(count_available_tests, dat$Z_FLDAT, dat$n_exec)
+
+
+            
+## Calculate final composite scores. Add up for every non-NA value and divide by the number of tests per patient
+              
+dat <- dat %>% mutate (Z_MEM = ((ifelse(is.na(Z_VATAtot), 0, Z_VATAtot)) + 
+                                  (ifelse(is.na(Z_W15Ttot), 0, Z_W15Ttot))+ 
+                                  (ifelse(is.na(Z_N_15WTui), 0, Z_N_15WTui))) / n_mem,
+                      
+                       Z_EXEC = ((ifelse(is.na(Z_N_CRach), 0, Z_N_CRach)) + 
+                                   (ifelse(is.na(Z_N_Strt3), 0, Z_N_Strt3)) + 
+                                   (ifelse(is.na(Z_N_TMTBt), 0, Z_N_TMTBt)) +
+                                   (ifelse(is.na(Z_FLDAT), 0, Z_FLDAT))) / n_exec)
+
+dat <- dat %>% mutate(Z_MEM = ifelse(n_mem <2, NA, Z_MEM),
+                      Z_EXEC = ifelse(n_exec <2, NA, Z_EXEC)
+                      )
+
+```
+
+
+#### Domain score distributions
+
+```{r}
+domains <-c("V_MMSE", "Z_MEM", "Z_EXEC")
+
+library(tidyr)
+dat %>%
+  select(all_of(domains)) %>%
+  tidyr::gather() %>%
+  ggplot(aes(value)) +
+    facet_wrap(~ key, scales = "free") +
+    geom_histogram()
+```
+
+
+```{r}
+dat %>% 
+  select(I_ID, V_dat, V_MMSE,  N_date, n_mem, n_exec, Z_MEM, Z_EXEC) %>% 
+  write.xlsx(., here("data", "interim", "551_cog_reserve_activity_DBo_20231124_Long_Domains_ADcont.xlsx"))
+```
+
+
+
+
+
+
+
+

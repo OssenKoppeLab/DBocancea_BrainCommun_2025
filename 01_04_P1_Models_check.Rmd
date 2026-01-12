@@ -1,0 +1,26 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(here)
+```
+
+
+```{r}
+dat_median <- readRDS(file = here("data", "processed", "Part1_dat_median_all.rds"))
+```
+
+
+ ~ Diagnosis models
+ 
+```{r fig.height=10, fig.width=8}
+performance::check_model(lm(CAV_lifetime ~ Diagnosis + Age + Sex + Edu_tert, data=dat_median))
+performance::check_model(lm(CAV_past     ~ Diagnosis + Age + Sex + Edu_tert, data=dat_median))
+performance::check_model(lm(CAV_current  ~ Diagnosis + Age + Sex + Edu_tert, data=dat_median))
+performance::check_model(lm(FAV          ~ Diagnosis + Age + Sex + Edu_tert, data=dat_median))
+
+```

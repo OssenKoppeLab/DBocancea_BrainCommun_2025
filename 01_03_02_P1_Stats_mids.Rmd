@@ -1,0 +1,4004 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+
+library(tidyverse)
+library(here)
+
+library(mice)
+library(gt)
+library(gtsummary)
+
+theme_set(theme_classic())
+
+plot_single_plots = FALSE
+
+# For plotting, load directly work environment
+#load(here("results", "1_descriptives", "01_04_P1_Stats_mids.RData"))
+
+```
+
+```{r}
+
+palette <- c("SCD" = "#582851",
+             "MCI" = "#7E3873",
+             "AD"  = "#B355A5",
+             
+             "PPA" = "#40606d",
+             "FTD" = "#779FAF" ,
+             
+             "DLB"  = "#3A5A30",
+             "CBS/PSP" = "#69a257",
+             
+             "VaD" = "#e3d19c",
+             
+             "Dem other"   = "#c4024d",
+             "Neuro other" = "#8D0137",
+             
+             "Psych" = "#C4A102")
+
+
+get_p_stars <- function(pval, thresholds = NULL) {
+  if (is.null(thresholds)) thresholds <- c(.05, .01, .001)
+  dplyr::case_when(
+    is.na(pval) ~ "",
+    pval < thresholds[3] ~ "***",
+    pval < thresholds[2] ~ "**",
+    pval < thresholds[1] ~ "*",
+    TRUE ~ ""
+  )
+}
+
+```
+
+
+
+
+
+
+## Load data 
+
+```{r}
+# load data
+datmids <- readRDS(file = here("data", "processed", "Part1_datmids_all.rds"))
+
+datimp <- complete(datmids, action="long", include = FALSE)
+
+dat_median <- readRDS(file = here("data", "processed", "Part1_dat_median_all.rds"))
+
+```
+
+
+## 1) ANALYSES
+
+### Correlations
+
+```{r}
+correlations<- miceadds::micombine.cor(mi.res=datmids, variables = c( "Age", "MMSE", "MEM", "EXEC", "CAV_lifetime", "CAV_current", "CAV_past", "FAV"))
+
+openxlsx::write.xlsx(correlations, here("results", "1_descriptives", "models", "Raw_correlations_mids.xlsx"), asTable = F)
+```
+
+
+
+
+### Models - by ...
+
+ANOVA type of designs can be formulated and tested as a multi-parameter inference regression problem:
+https://stefvanbuuren.name/fimd/sec-multiparameter.html
+
+D1: multivariate Wald's test
+D2: cobining test statistics
+D3: likelihood ratio test
+
+Emmeans = pooled marginal means
+But not groupwise contrasts
+
+?emmeans::summary.emmGrid  for info on p-adjustment
+
+
+
+
+#### by DIAGNOSIS
+
+##### - Models
+
+```{r CAV_lifetime - DIAG}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_lifetime ~ Diagnosis + Age + Sex + Edu_tert))
+fit_summary <- summary(pool(fit))
+
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(CAV_lifetime ~ Age + Sex + Edu_tert))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "Diagnosis")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+#pairwise_summary$p.value.fdr <- data.frame(pairs(pairwisecomp, adjust="fdr"))$p.value
+
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_lifetime_s ~ Diagnosis + Age_s + Sex + Edu_tert))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "Diagnosis"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "Diagnosis"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+CAV_lifetime_DIAG <- list("Pooled_lm"  = fit_summary,
+                          "Omnibus_D1" = d1_summary,
+                          "Pairwise"   = pairwise_summary)
+
+openxlsx::write.xlsx(CAV_lifetime_DIAG, here("results", "1_descriptives", "models", "CAV_lifetime_DIAG.xlsx"), asTable = F)
+
+```
+
+```{r CAV_past - DIAG}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_past ~ Diagnosis + Age + Sex + Edu_tert))
+fit_summary <- summary(pool(fit))
+
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(CAV_past ~ Age + Sex + Edu_tert))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "Diagnosis")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_past_s ~ Diagnosis + Age_s + Sex + Edu_tert))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "Diagnosis"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "Diagnosis"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+CAV_past_DIAG <- list("Pooled_lm" = fit_summary,
+                      "Omnibus_D1" = d1_summary,
+                      "Pairwise" = pairwise_summary)
+
+openxlsx::write.xlsx(CAV_past_DIAG, here("results", "1_descriptives", "models", "CAV_past_DIAG.xlsx"), asTable = F)
+
+```
+
+```{r CAV_current - DIAG}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_current ~ Diagnosis + Age + Sex + Edu_tert))
+fit_summary <- summary(pool(fit))
+
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(CAV_current ~ Age + Sex + Edu_tert))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "Diagnosis")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_current_s ~ Diagnosis + Age_s + Sex + Edu_tert))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "Diagnosis"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "Diagnosis"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+CAV_current_DIAG <- list("Pooled_lm" = fit_summary,
+                          "Omnibus_D1" = d1_summary,
+                          "Pairwise" = pairwise_summary)
+
+openxlsx::write.xlsx(CAV_current_DIAG, here("results", "1_descriptives", "models", "CAV_current_DIAG.xlsx"), asTable = F)
+
+```
+
+```{r FAV - DIAG}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(FAV ~ Diagnosis + Age + Sex + Edu_tert))
+fit_summary <- summary(pool(fit))
+
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(FAV ~ Age + Sex + Edu_tert))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "Diagnosis")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(FAV_s ~ Diagnosis + Age_s + Sex + Edu_tert))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "Diagnosis"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "Diagnosis"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+FAV_DIAG <- list("Pooled_lm" = fit_summary,
+                 "Omnibus_D1" = d1_summary,
+                 "Pairwise" = pairwise_summary)
+
+openxlsx::write.xlsx(FAV_DIAG, here("results", "1_descriptives", "models", "FAV_DIAG.xlsx"), asTable = F)
+
+```
+
+
+##### - Table
+
+```{r Table - DIAG}
+
+table_DIAG <- data.frame(matrix(ncol=0,nrow=55))
+table_DIAG$contrast <- CAV_lifetime_DIAG$Pairwise[,"contrast"]
+
+table_DIAG$CAV_lifetime_Estimate <- paste(round(CAV_lifetime_DIAG$Pairwise$estimate,2), " (", 
+                                     round(CAV_lifetime_DIAG$Pairwise$SE,2), ")", sep="")
+table_DIAG$CAV_lifetime_Estimate_std <- paste(round(CAV_lifetime_DIAG$Pairwise$estimate_std,2), " (", 
+                                     round(CAV_lifetime_DIAG$Pairwise$SE_std,2), ")", sep="")
+table_DIAG$CAV_lifetime_p <- round(CAV_lifetime_DIAG$Pairwise$p.value.Tuckey_std, 3)
+
+
+table_DIAG$CAV_past_Estimate <- paste(round(CAV_past_DIAG$Pairwise$estimate,2), " (", 
+                                 round(CAV_past_DIAG$Pairwise$SE,2), ")", sep="")
+table_DIAG$CAV_past_Estimate_std <- paste(round(CAV_past_DIAG$Pairwise$estimate_std,2), " (", 
+                                 round(CAV_past_DIAG$Pairwise$SE_std,2), ")", sep="")
+table_DIAG$CAV_past_p <- round(CAV_past_DIAG$Pairwise$p.value.Tuckey_std, 3)
+
+
+table_DIAG$CAV_current_Estimate <- paste(round(CAV_current_DIAG$Pairwise$estimate,2), " (",
+                                    round(CAV_current_DIAG$Pairwise$SE,2), ")", sep="")
+table_DIAG$CAV_current_Estimate_std <- paste(round(CAV_current_DIAG$Pairwise$estimate_std,2), " (",
+                                    round(CAV_current_DIAG$Pairwise$SE_std,2), ")", sep="")
+table_DIAG$CAV_current_p <- round(CAV_current_DIAG$Pairwise$p.value.Tuckey_std, 3)
+
+
+table_DIAG$FAV_Estimate <- paste(round(FAV_DIAG$Pairwise$estimate,2), " (", 
+                            round(FAV_DIAG$Pairwise$SE,2), ")", sep="")
+table_DIAG$FAV_Estimate_std <- paste(round(FAV_DIAG$Pairwise$estimate_std,2), " (", 
+                            round(FAV_DIAG$Pairwise$SE_std,2), ")", sep="")
+table_DIAG$FAV_p <- round(FAV_DIAG$Pairwise$p.value.Tuckey_std, 3)
+
+
+gt(table_DIAG, rownames_to_stub = F) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_lifetime_p, rows = CAV_lifetime_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_past_p, rows = CAV_past_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_current_p, rows = CAV_current_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = FAV_p, rows = FAV_p < 0.05)) %>% 
+  sub_values(values = 0.000, replacement = "<0.001") %>% 
+      gtsave(filename=here("results", "1_descriptives", "tables", "Table_Q_DIAG.docx"))
+
+
+```
+
+
+##### - Plots
+
+```{r Plot - DIAG data prep}
+
+if (plot_single_plots) {
+  
+  dat_median <- dat_median %>%
+    mutate(CAV_lifetime_adj = lm(CAV_lifetime_s ~ Age + Sex + Edu_tert, data=dat_median)$resid,
+           CAV_past_adj     = lm(CAV_past_s     ~ Age + Sex + Edu_tert, data=dat_median)$resid,
+           CAV_current_adj  = lm(CAV_current_s  ~ Age + Sex + Edu_tert, data=dat_median)$resid,
+           FAV_adj          = lm(FAV_s          ~ Age + Sex + Edu_tert, data=dat_median)$resid
+    )
+  
+  table_DIAG <- table_DIAG %>% 
+    separate_wider_delim(contrast, delim = " - ", names = c("group1", "group2")) %>% 
+    mutate(group1 = gsub("[()]", "", group1),
+           group2 = gsub("[()]", "", group2))
+  
+  CAV_lifetime_table <- table_DIAG %>% 
+    filter(CAV_lifetime_p <0.05) %>% 
+    mutate(CAV_lifetime_p = get_p_stars(CAV_lifetime_p))
+  
+  CAV_past_table <- table_DIAG %>% 
+    filter(CAV_past_p <0.05) %>% 
+    mutate(CAV_past_p = get_p_stars(CAV_past_p))
+  
+  CAV_current_table <- table_DIAG %>% 
+    filter(CAV_current_p <0.05) %>% 
+    mutate(CAV_current_p = get_p_stars(CAV_current_p))
+  
+  FAV_current_table <- table_DIAG %>% 
+    filter(FAV_p <0.05) %>% 
+    mutate(FAV_p = get_p_stars(FAV_p))
+  
+  
+  ## Plot with adjusted scores 
+  
+  # Raincloud with cloud to the side
+  (plot_DIAG_CAV_lifetime <- dat_median %>% 
+      ggplot(., aes(x = Diagnosis, y = CAV_lifetime_adj, fill=Diagnosis)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+      ggeasy::easy_labs() +
+      scale_fill_manual(values=palette) +
+      scale_x_discrete(guide = guide_axis(angle = 25)) +
+      ylim(-2.7, 3.5)
+    # ggpubr::geom_bracket(
+    #   aes(xmin = group1, xmax = group2, label = CAV_lifetime_p),
+    #   data = CAV_lifetime_table, y.position = c(4, 3.5), inherit.aes = F, tip.length = 0.01)
+  )
+  
+  
+  (plot_DIAG_CAV_past <- dat_median %>% 
+      ggplot(., aes(x = Diagnosis, y = CAV_past_adj, fill=Diagnosis)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+      ggeasy::easy_labs() +
+      scale_fill_manual(values=palette) +
+      scale_x_discrete(guide = guide_axis(angle = 25)) +
+      ylim(-2.7, 3.5)
+    # ggpubr::geom_bracket(
+    #   aes(xmin = group1, xmax = group2, label = CAV_past_p),
+    #   data = CAV_past_table, y.position = c(60, 50), inherit.aes = F, tip.length = 0.01)
+  )
+  
+  (plot_DIAG_CAV_current <- dat_median %>% 
+      ggplot(., aes(x = Diagnosis, y = CAV_current_adj, fill=Diagnosis)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+      ggeasy::easy_labs() +
+      scale_fill_manual(values=palette) +
+      scale_x_discrete(guide = guide_axis(angle = 25)) +
+      ylim(-2.8, 3)
+    # ggpubr::geom_bracket(
+    #   aes(xmin = group2, xmax = group1, label = CAV_current_p, size=0.1),
+    #   data = CAV_current_table, y.position = c(3.3, 3.6, 3.9, 4.2, 4.5, 4.8, 3.2, 5.4, 5.7, 6, 6.3, 6.6, 3.3, 3.3), inherit.aes = F,
+    #   tip.length = 0.01)
+  )
+  
+  (plot_DIAG_FAV <- dat_median %>% 
+      ggplot(., aes(x = Diagnosis, y = FAV_adj, fill=Diagnosis)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+      ggeasy::easy_labs() +
+      scale_fill_manual(values=palette) +
+      scale_x_discrete(guide = guide_axis(angle = 25)) +
+      ylim(-2, 6.5)
+    #   ggpubr::geom_bracket(
+    #     aes(xmin = group2, xmax = group1, label = FAV_p, size=0.1),
+    #     data = FAV_table, y.position = c(3.3, 3.6, 3.9, 4.2, 4.5, 4.8, 3.2, 5.4, 5.7, 6, 6.3, 6.6, 3.3, 3.3), 
+    #     inherit.aes = F, tip.length = 0.01)
+  )
+  
+  
+  
+  ggsave(plot = plot_DIAG_CAV_lifetime,
+         filename = here("results", "1_descriptives", "figures", "DIAG_CAV_lifetime_adj.pdf"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_DIAG_CAV_past,
+         filename = here("results", "1_descriptives", "figures", "DIAG_CAV_past_adj.pdf"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_DIAG_CAV_current,
+         filename = here("results", "1_descriptives", "figures", "DIAG_CAV_current_adj.pdf"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_DIAG_FAV,
+         filename = here("results", "1_descriptives", "figures", "DIAG_FAV_adj.pdf"),
+         width = 9, height = 5)
+  
+  
+  
+  ggsave(plot = plot_DIAG_CAV_lifetime,
+         filename = here("results", "1_descriptives", "figures", "DIAG_CAV_lifetime_adj.png"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_DIAG_CAV_past,
+         filename = here("results", "1_descriptives", "figures", "DIAG_CAV_past_adj.png"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_DIAG_CAV_current,
+         filename = here("results", "1_descriptives", "figures", "DIAG_CAV_current_adj.png"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_DIAG_FAV,
+         filename = here("results", "1_descriptives", "figures", "DIAG_FAV_adj.png"),
+         width = 9, height = 5)
+  
+  
+  
+  ## Plot with raw scores 
+  
+  # Raincloud with cloud to the side
+  (plot_DIAG_CAV_lifetime <- dat_median %>% 
+      ggplot(., aes(x = Diagnosis, y = CAV_lifetime, fill=Diagnosis)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+      ggeasy::easy_labs() +
+      scale_fill_manual(values=palette) +
+      scale_x_discrete(guide = guide_axis(angle = 25)) + 
+      ylim(25, 130) +
+      ggpubr::geom_bracket(
+        aes(xmin = group1, xmax = group2, label = CAV_lifetime_p),
+        data = CAV_lifetime_table, y.position = c(130, 125), inherit.aes = F, tip.length = 0.01, vjust=0.5)
+  )
+  
+  
+  (plot_DIAG_CAV_past <- dat_median %>% 
+      ggplot(., aes(x = Diagnosis, y = CAV_past, fill=Diagnosis)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+      ggeasy::easy_labs() +
+      scale_fill_manual(values=palette) +
+      scale_x_discrete(guide = guide_axis(angle = 25))
+    #ylim(-2.7, 3.5)
+    # ggpubr::geom_bracket(
+    #   aes(xmin = group1, xmax = group2, label = CAV_past_p),
+    #   data = CAV_past_table, y.position = c(60, 50), inherit.aes = F, tip.length = 0.01)
+  )
+  
+  (plot_DIAG_CAV_current <- dat_median %>% 
+      ggplot(., aes(x = Diagnosis, y = CAV_current, fill=Diagnosis)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+      ggeasy::easy_labs() +
+      scale_fill_manual(values=palette) +
+      scale_x_discrete(guide = guide_axis(angle = 25))
+    #ylim(-2.8, 3)
+    # ggpubr::geom_bracket(
+    #   aes(xmin = group2, xmax = group1, label = CAV_current_p, size=0.1),
+    #   data = CAV_current_table, y.position = c(3.3, 3.6, 3.9, 4.2, 4.5, 4.8, 3.2, 5.4, 5.7, 6, 6.3, 6.6, 3.3, 3.3), inherit.aes = F,
+    #   tip.length = 0.01)
+  )
+  
+  (plot_DIAG_FAV <- dat_median %>% 
+      ggplot(., aes(x = Diagnosis, y = FAV, fill=Diagnosis)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+      ggeasy::easy_labs() +
+      scale_fill_manual(values=palette) +
+      scale_x_discrete(guide = guide_axis(angle = 25)) +
+      ylim(0, 680)
+    #   ggpubr::geom_bracket(
+    #     aes(xmin = group2, xmax = group1, label = FAV_p, size=0.1),
+    #     data = FAV_table, y.position = c(3.3, 3.6, 3.9, 4.2, 4.5, 4.8, 3.2, 5.4, 5.7, 6, 6.3, 6.6, 3.3, 3.3), 
+    #     inherit.aes = F, tip.length = 0.01)
+  )
+  
+  
+  
+  ggsave(plot = plot_DIAG_CAV_lifetime,
+         filename = here("results", "1_descriptives", "figures", "DIAG_CAV_lifetime_raw.pdf"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_DIAG_CAV_past,
+         filename = here("results", "1_descriptives", "figures", "DIAG_CAV_past_raw.pdf"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_DIAG_CAV_current,
+         filename = here("results", "1_descriptives", "figures", "DIAG_CAV_current_raw.pdf"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_DIAG_FAV,
+         filename = here("results", "1_descriptives", "figures", "DIAG_FAV_raw.pdf"),
+         width = 9, height = 5)
+  
+  
+  
+  ggsave(plot = plot_DIAG_CAV_lifetime,
+         filename = here("results", "1_descriptives", "figures", "DIAG_CAV_lifetime_raw.png"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_DIAG_CAV_past,
+         filename = here("results", "1_descriptives", "figures", "DIAG_CAV_past_raw.png"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_DIAG_CAV_current,
+         filename = here("results", "1_descriptives", "figures", "DIAG_CAV_current_raw.png"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_DIAG_FAV,
+         filename = here("results", "1_descriptives", "figures", "DIAG_FAV_raw.png"),
+         width = 9, height = 5)
+  
+}
+
+```
+
+
+
+#### by SEX
+
+##### - Models
+
+```{r CAV_lifetime - Sex}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_lifetime ~ Sex + Age + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(CAV_lifetime ~ Age + Edu_tert + Diagnosis))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "Sex")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_lifetime_s ~ Sex + Age_s + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "Sex"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "Sex"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+CAV_lifetime_SEX <- list("Pooled_lm" = fit_summary,
+                         "Omnibus_D1" = d1_summary,
+                         "Pairwise" = pairwise_summary)
+
+openxlsx::write.xlsx(CAV_lifetime_SEX, here("results", "1_descriptives", "models", "CAV_lifetime_SEX.xlsx"), asTable = F)
+
+```
+
+```{r CAV_past - Sex}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_past ~ Sex + Age + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(CAV_past ~ Age + Edu_tert + Diagnosis))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "Sex")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_past_s ~ Sex + Age_s + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "Sex"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "Sex"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+CAV_past_SEX <- list("Pooled_lm" = fit_summary,
+                     "Omnibus_D1" = d1_summary,
+                     "Pairwise" = pairwise_summary)
+
+openxlsx::write.xlsx(CAV_past_SEX, here("results", "1_descriptives", "models", "CAV_past_SEX.xlsx"), asTable = F)
+
+```
+
+```{r CAV_current - Sex}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_current ~ Sex + Age + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(CAV_current ~ Age + Edu_tert + Diagnosis))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "Sex")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_current_s ~ Sex + Age_s + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "Sex"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "Sex"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+CAV_current_SEX <- list("Pooled_lm" = fit_summary,
+                     "Omnibus_D1" = d1_summary,
+                     "Pairwise" = pairwise_summary)
+
+openxlsx::write.xlsx(CAV_current_SEX, here("results", "1_descriptives", "models", "CAV_current_SEX.xlsx"), asTable = F)
+
+```
+
+```{r FAV - Sex}
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(FAV ~ Sex + Age + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(FAV ~ Age + Edu_tert + Diagnosis))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "Sex")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(FAV_s ~ Sex + Age_s + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "Sex"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "Sex"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+FAV_SEX <- list("Pooled_lm" = fit_summary,
+                     "Omnibus_D1" = d1_summary,
+                     "Pairwise" = pairwise_summary)
+
+openxlsx::write.xlsx(FAV_SEX, here("results", "1_descriptives", "models", "FAV_SEX.xlsx"), asTable = F)
+
+```
+
+
+##### - Table
+
+```{r Table - SEX}
+
+table_SEX <- data.frame(matrix(ncol=0,nrow=1))
+table_SEX$contrast <- CAV_lifetime_SEX$Pairwise[,"contrast"]
+
+table_SEX$CAV_lifetime_Estimate <- paste(round(CAV_lifetime_SEX$Pairwise$estimate,2), " (", 
+                                     round(CAV_lifetime_SEX$Pairwise$SE,2), ")", sep="")
+table_SEX$CAV_lifetime_Estimate_std <- paste(round(CAV_lifetime_SEX$Pairwise$estimate_std,2), " (", 
+                                     round(CAV_lifetime_SEX$Pairwise$SE_std,2), ")", sep="")
+table_SEX$CAV_lifetime_p <- round(CAV_lifetime_SEX$Pairwise$p.value.Tuckey_std, 3)
+
+
+table_SEX$CAV_past_Estimate <- paste(round(CAV_past_SEX$Pairwise$estimate,2), " (", 
+                                 round(CAV_past_SEX$Pairwise$SE,2), ")", sep="")
+table_SEX$CAV_past_Estimate_std <- paste(round(CAV_past_SEX$Pairwise$estimate_std,2), " (", 
+                                 round(CAV_past_SEX$Pairwise$SE_std,2), ")", sep="")
+table_SEX$CAV_past_p <- round(CAV_past_SEX$Pairwise$p.value.Tuckey_std, 3)
+
+
+table_SEX$CAV_current_Estimate <- paste(round(CAV_current_SEX$Pairwise$estimate,2), " (",
+                                    round(CAV_current_SEX$Pairwise$SE,2), ")", sep="")
+table_SEX$CAV_current_Estimate_std <- paste(round(CAV_current_SEX$Pairwise$estimate_std,2), " (",
+                                    round(CAV_current_SEX$Pairwise$SE_std,2), ")", sep="")
+table_SEX$CAV_current_p <- round(CAV_current_SEX$Pairwise$p.value.Tuckey_std, 3)
+
+
+table_SEX$FAV_Estimate <- paste(round(FAV_SEX$Pairwise$estimate,2), " (", 
+                            round(FAV_SEX$Pairwise$SE,2), ")", sep="")
+table_SEX$FAV_Estimate_std <- paste(round(FAV_SEX$Pairwise$estimate_std,2), " (", 
+                            round(FAV_SEX$Pairwise$SE_std,2), ")", sep="")
+table_SEX$FAV_p <- round(FAV_SEX$Pairwise$p.value.Tuckey_std, 3)
+
+
+gt(table_SEX, rownames_to_stub = F) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_lifetime_p, rows = CAV_lifetime_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_past_p, rows = CAV_past_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_current_p, rows = CAV_current_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = FAV_p, rows = FAV_p < 0.05)) %>% 
+  sub_values(values = 0.000, replacement = "<0.001") %>% 
+      gtsave(filename=here("results", "1_descriptives", "tables", "Table_Q_SEX.docx"))
+    
+```
+
+
+##### - Plots
+
+```{r Plots - SEX prep data}
+
+if (plot_single_plots) {
+  
+  dat_median <- dat_median %>%
+    mutate(CAV_lifetime_adj = lm(CAV_lifetime_s ~ Age + Edu_tert + Diagnosis, data=dat_median)$resid,
+           CAV_past_adj     = lm(CAV_past_s     ~ Age + Edu_tert + Diagnosis, data=dat_median)$resid,
+           CAV_current_adj  = lm(CAV_current_s  ~ Age + Edu_tert + Diagnosis, data=dat_median)$resid,
+           FAV_adj          = lm(FAV_s          ~ Age + Edu_tert + Diagnosis, data=dat_median)$resid
+    )
+  
+  table_SEX_plot <- table_SEX %>% 
+    separate_wider_delim(contrast, delim = " - ", names = c("group1", "group2")) %>% 
+    mutate(group1 = gsub("[()]", "", group1),
+           group2 = gsub("[()]", "", group2))
+  
+  CAV_lifetime_table <- table_SEX_plot %>% 
+    filter(CAV_lifetime_p <0.05) %>% 
+    mutate(CAV_lifetime_p = get_p_stars(CAV_lifetime_p))
+  
+  CAV_past_table <- table_SEX_plot %>% 
+    filter(CAV_past_p <0.05) %>% 
+    mutate(CAV_past_p = get_p_stars(CAV_past_p))
+  
+  CAV_current_table <- table_SEX_plot %>% 
+    filter(CAV_current_p <0.05) %>% 
+    mutate(CAV_current_p = get_p_stars(CAV_current_p))
+  
+  FAV_table <- table_SEX_plot %>% 
+    filter(FAV_p <0.05) %>% 
+    mutate(FAV_p = get_p_stars(FAV_p))
+  
+  
+  # Figures
+  
+  (plot_SEX_CAV_lifetime <- dat_median %>% 
+      ggplot(., aes(x = Sex, y = CAV_lifetime_adj, fill=Sex)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      ggeasy::easy_labs() +
+      scale_fill_brewer(palette = "Dark2") +
+      scale_x_discrete(guide = guide_axis(angle = 25)) +
+      # ylim(-3, 4.5) +
+      ggpubr::geom_bracket(
+        aes(xmin = group1, xmax = group2, label = CAV_lifetime_p),
+        data = CAV_lifetime_table, y.position = c(3.2), inherit.aes = F, tip.length = 0.01)
+  )
+  
+  (plot_SEX_CAV_past <- dat_median %>% 
+      ggplot(., aes(x = Sex, y = CAV_past_adj, fill=Sex)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      ggeasy::easy_labs() +
+      scale_fill_brewer(palette = "Dark2") +
+      scale_x_discrete(guide = guide_axis(angle = 25)) +
+      # ylim(-3, 4.5) +
+      ggpubr::geom_bracket(
+        aes(xmin = group1, xmax = group2, label = CAV_past_p),
+        data = CAV_past_table, y.position = c(3.2), inherit.aes = F, tip.length = 0.01)
+  )
+  
+  
+  (plot_SEX_CAV_current <- dat_median %>% 
+      ggplot(., aes(x = Sex, y = CAV_current_adj, fill=Sex)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      ggeasy::easy_labs() +
+      scale_fill_brewer(palette = "Dark2") +
+      scale_x_discrete(guide = guide_axis(angle = 25)) +
+      # ylim(-3, 4.5) +
+      ggpubr::geom_bracket(
+        aes(xmin = group1, xmax = group2, label = CAV_current_p),
+        data = CAV_current_table, y.position = c(3.2), inherit.aes = F, tip.length = 0.01)
+  )
+  
+  
+  (plot_SEX_FAV <- dat_median %>% 
+      ggplot(., aes(x = Sex, y = FAV_adj, fill=Sex)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      ggeasy::easy_labs() +
+      scale_fill_brewer(palette = "Dark2") +
+      scale_x_discrete(guide = guide_axis(angle = 25)) +
+      # ylim(-3, 4.5) +
+      ggpubr::geom_bracket(
+        aes(xmin = group1, xmax = group2, label = FAV_p),
+        data = FAV_table, y.position = c(6), inherit.aes = F, tip.length = 0.01)
+  )
+  
+  
+  ggsave(plot = plot_SEX_CAV_lifetime,
+         filename = here("results", "1_descriptives", "figures", "SEX_CAV_lifetime_adj.pdf"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_SEX_CAV_past,
+         filename = here("results", "1_descriptives", "figures", "SEX_CAV_past_adj.pdf"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_SEX_CAV_current,
+         filename = here("results", "1_descriptives", "figures", "SEX_CAV_current_adj.pdf"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_SEX_FAV,
+         filename = here("results", "1_descriptives", "figures", "SEX_FAV_adj.pdf"),
+         width = 9, height = 5)
+  
+  
+  
+  ggsave(plot = plot_SEX_CAV_lifetime,
+         filename = here("results", "1_descriptives", "figures", "SEX_CAV_lifetime_adj.png"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_SEX_CAV_past,
+         filename = here("results", "1_descriptives", "figures", "SEX_CAV_past_adj.png"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_SEX_CAV_current,
+         filename = here("results", "1_descriptives", "figures", "SEX_CAV_current_adj.png"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_SEX_FAV,
+         filename = here("results", "1_descriptives", "figures", "SEX_FAV_adj.png"),
+         width = 9, height = 5)
+  
+  
+}
+
+```
+
+
+
+#### by EDUCATION
+
+##### - Models
+
+```{r CAV_lifetime - EDU}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_lifetime ~ Edu_tert + Sex + Age + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(CAV_lifetime ~ Age + Sex + Diagnosis))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "Edu_tert")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_lifetime_s ~  Edu_tert + Sex + Age_s + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "Edu_tert"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "Edu_tert"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+CAV_lifetime_EDU <- list("Pooled_lm" = fit_summary,
+                         "Omnibus_D1" = d1_summary,
+                         "Pairwise" = pairwise_summary)
+
+openxlsx::write.xlsx(CAV_lifetime_EDU, here("results", "1_descriptives", "models", "CAV_lifetime_EDU.xlsx"), asTable = F)
+
+```
+
+```{r CAV_past - EDU}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_past ~  Edu_tert + Sex + Age + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(CAV_past ~ Age + Sex + Diagnosis))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "Edu_tert")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_past_s ~  Edu_tert + Sex + Age_s + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "Edu_tert"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "Edu_tert"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+CAV_past_EDU <- list("Pooled_lm" = fit_summary,
+                     "Omnibus_D1" = d1_summary,
+                     "Pairwise" = pairwise_summary)
+
+openxlsx::write.xlsx(CAV_past_EDU, here("results", "1_descriptives", "models", "CAV_past_EDU.xlsx"), asTable = F)
+
+```
+
+```{r CAV_current - EDU}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_current ~  Edu_tert + Sex + Age + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(CAV_current ~ Age + Sex + Diagnosis))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "Edu_tert")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_current_s ~  Edu_tert + Sex + Age_s + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "Edu_tert"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "Edu_tert"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+CAV_current_EDU <- list("Pooled_lm" = fit_summary,
+                        "Omnibus_D1" = d1_summary,
+                        "Pairwise" = pairwise_summary)
+
+openxlsx::write.xlsx(CAV_current_EDU, here("results", "1_descriptives", "models", "CAV_current_EDU.xlsx"), asTable = F)
+
+```
+
+```{r FAV - EDU}
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(FAV ~  Edu_tert + Sex + Age + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(FAV ~ Age + Sex + Diagnosis))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "Edu_tert")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(FAV_s ~  Edu_tert + Sex + Age_s + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "Edu_tert"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "Edu_tert"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+FAV_EDU <- list("Pooled_lm" = fit_summary,
+                "Omnibus_D1" = d1_summary,
+                "Pairwise" = pairwise_summary)
+
+openxlsx::write.xlsx(FAV_EDU, here("results", "1_descriptives", "models", "FAV_EDU.xlsx"), asTable = F)
+
+```
+
+##### - Table
+
+```{r Table - EDU}
+table_EDU <- data.frame(matrix(ncol=0,nrow=3))
+table_EDU$contrast <- CAV_lifetime_EDU$Pairwise[,"contrast"]
+
+
+table_EDU$CAV_lifetime_Estimate <- paste(round(CAV_lifetime_EDU$Pairwise$estimate,2), " (", 
+                                     round(CAV_lifetime_EDU$Pairwise$SE,2), ")", sep="")
+table_EDU$CAV_lifetime_Estimate_std <- paste(round(CAV_lifetime_EDU$Pairwise$estimate_std,2), " (", 
+                                     round(CAV_lifetime_EDU$Pairwise$SE_std,2), ")", sep="")
+table_EDU$CAV_lifetime_p <- round(CAV_lifetime_EDU$Pairwise$p.value.Tuckey_std, 3)
+
+
+table_EDU$CAV_past_Estimate <- paste(round(CAV_past_EDU$Pairwise$estimate,2), " (", 
+                                 round(CAV_past_EDU$Pairwise$SE,2), ")", sep="")
+table_EDU$CAV_past_Estimate_std <- paste(round(CAV_past_EDU$Pairwise$estimate_std,2), " (", 
+                                 round(CAV_past_EDU$Pairwise$SE_std,2), ")", sep="")
+table_EDU$CAV_past_p <- round(CAV_past_EDU$Pairwise$p.value.Tuckey_std, 3)
+
+
+table_EDU$CAV_current_Estimate <- paste(round(CAV_current_EDU$Pairwise$estimate,2), " (",
+                                    round(CAV_current_EDU$Pairwise$SE,2), ")", sep="")
+table_EDU$CAV_current_Estimate_std <- paste(round(CAV_current_EDU$Pairwise$estimate_std,2), " (",
+                                    round(CAV_current_EDU$Pairwise$SE_std,2), ")", sep="")
+table_EDU$CAV_current_p <- round(CAV_current_EDU$Pairwise$p.value.Tuckey_std, 3)
+
+
+table_EDU$FAV_Estimate <- paste(round(FAV_EDU$Pairwise$estimate,2), " (", 
+                            round(FAV_EDU$Pairwise$SE,2), ")", sep="")
+table_EDU$FAV_Estimate_std <- paste(round(FAV_EDU$Pairwise$estimate_std,2), " (", 
+                            round(FAV_EDU$Pairwise$SE_std,2), ")", sep="")
+table_EDU$FAV_p <- round(FAV_EDU$Pairwise$p.value.Tuckey_std, 3)
+
+
+gt(table_EDU, rownames_to_stub = F) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_lifetime_p, rows = CAV_lifetime_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_past_p, rows = CAV_past_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_current_p, rows = CAV_current_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = FAV_p, rows = FAV_p < 0.05)) %>% 
+  sub_values(values = 0.000, replacement = "<0.001") %>% 
+      gtsave(filename=here("results", "1_descriptives", "tables", "Table_Q_EDU.docx"))
+    
+```
+
+##### - Plots
+
+```{r Plot - EDU prep data}
+
+if(plot_single_plots) {
+  
+  dat_median <- dat_median %>%
+    mutate(CAV_lifetime_adj = lm(CAV_lifetime_s ~ Age + Sex + Diagnosis, data=dat_median)$resid,
+           CAV_past_adj     = lm(CAV_past_s     ~ Age + Sex + Diagnosis, data=dat_median)$resid,
+           CAV_current_adj  = lm(CAV_current_s  ~ Age + Sex + Diagnosis, data=dat_median)$resid,
+           FAV_adj          = lm(FAV_s          ~ Age + Sex + Diagnosis, data=dat_median)$resid
+    )
+  
+  table_EDU <- table_EDU %>%
+    separate_wider_delim(contrast, delim = " - ", names = c("group1", "group2")) %>%
+    mutate(group1 = gsub("[()]", "", group1),
+           group2 = gsub("[()]", "", group2))
+  
+  CAV_lifetime_table <- table_EDU %>%
+    filter(CAV_lifetime_p <0.05) %>%
+    mutate(CAV_lifetime_p = get_p_stars(CAV_lifetime_p))
+  
+  CAV_past_table <- table_EDU %>%
+    filter(CAV_past_p <0.05) %>%
+    mutate(CAV_past_p = get_p_stars(CAV_past_p))
+  
+  CAV_current_table <- table_EDU %>%
+    filter(CAV_current_p <0.05) %>%
+    mutate(CAV_current_p = get_p_stars(CAV_current_p))
+  
+  FAV_table <- table_EDU %>%
+    filter(FAV_p <0.05) %>%
+    mutate(FAV_p = get_p_stars(FAV_p))
+  
+  
+  # Figures
+  
+  (plot_EDU_CAV_lifetime <- dat_median %>% 
+      ggplot(., aes(x = Edu_tert, y = CAV_lifetime_adj, fill=Edu_tert)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      ggeasy::easy_labs() +
+      scale_fill_brewer(palette = "Dark2") +
+      scale_x_discrete(guide = guide_axis(angle = 25)) +
+      # ylim(-3, 4.5) +
+      ggpubr::geom_bracket(
+        aes(xmin = group1, xmax = group2, label = CAV_lifetime_p),
+        data = CAV_lifetime_table, y.position = c(3, 3.5, 3.2), inherit.aes = F, tip.length = 0.01)
+  )
+  
+  (plot_EDU_CAV_past<- dat_median %>% 
+      ggplot(., aes(x = Edu_tert, y = CAV_past_adj, fill=Edu_tert)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      ggeasy::easy_labs() +
+      scale_fill_brewer(palette = "Dark2") +
+      scale_x_discrete(guide = guide_axis(angle = 25)) +
+      # ylim(-3, 4.5) +
+      ggpubr::geom_bracket(
+        aes(xmin = group1, xmax = group2, label = CAV_past_p),
+        data = CAV_past_table, y.position = c(3, 3.5, 3.2), inherit.aes = F, tip.length = 0.01)
+  )
+  
+  (plot_EDU_CAV_current <- dat_median %>% 
+      ggplot(., aes(x = Edu_tert, y = CAV_current_adj, fill=Edu_tert)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      ggeasy::easy_labs() +
+      scale_fill_brewer(palette = "Dark2") +
+      scale_x_discrete(guide = guide_axis(angle = 25)) +
+      # ylim(-3, 4.5) +
+      ggpubr::geom_bracket(
+        aes(xmin = group1, xmax = group2, label = CAV_current_p),
+        data = CAV_current_table, y.position = c(3, 3.5, 3.2), inherit.aes = F, tip.length = 0.01)
+  )
+  
+  (plot_EDU_FAV <- dat_median %>% 
+      ggplot(., aes(x = Edu_tert, y = FAV_adj, fill=Edu_tert)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      ggeasy::easy_labs() +
+      scale_fill_brewer(palette = "Dark2") +
+      scale_x_discrete(guide = guide_axis(angle = 25)) +
+      # ylim(-3, 4.5) +
+      ggpubr::geom_bracket(
+        aes(xmin = group1, xmax = group2, label = FAV_p),
+        data = FAV_table, y.position = c(5.5, 6.1), inherit.aes = F, tip.length = 0.01)
+  )
+  
+  
+  ggsave(plot = plot_EDU_CAV_lifetime,
+         filename = here("results", "1_descriptives", "figures", "EDU_CAV_lifetime_adj.pdf"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_EDU_CAV_past,
+         filename = here("results", "1_descriptives", "figures", "EDU_CAV_past_adj.pdf"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_EDU_CAV_current,
+         filename = here("results", "1_descriptives", "figures", "EDU_CAV_current_adj.pdf"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_EDU_FAV,
+         filename = here("results", "1_descriptives", "figures", "EDU_FAV_adj.pdf"),
+         width = 9, height = 5)
+  
+  
+  
+  ggsave(plot = plot_EDU_CAV_lifetime,
+         filename = here("results", "1_descriptives", "figures", "EDU_CAV_lifetime_adj.png"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_EDU_CAV_past,
+         filename = here("results", "1_descriptives", "figures", "EDU_CAV_past_adj.png"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_EDU_CAV_current,
+         filename = here("results", "1_descriptives", "figures", "EDU_CAV_current_adj.png"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_EDU_FAV,
+         filename = here("results", "1_descriptives", "figures", "EDU_FAV_adj.png"),
+         width = 9, height = 5)
+  
+}
+```
+
+
+
+#### by APOE e4
+
+##### - Models
+
+```{r CAV_lifetime - APOE e4}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_lifetime ~ APOE_e4 + Edu_tert + Sex + Age + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(CAV_lifetime ~ Edu_tert + Age + Sex + Diagnosis))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "APOE_e4")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_lifetime_s ~ APOE_e4 + Edu_tert + Sex + Age_s + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "APOE_e4"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "APOE_e4"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+CAV_lifetime_APOE <- list("Pooled_lm" = fit_summary,
+                         "Omnibus_D1" = d1_summary,
+                         "Pairwise" = pairwise_summary)
+
+openxlsx::write.xlsx(CAV_lifetime_APOE, here("results", "1_descriptives", "models", "CAV_lifetime_APOEe4.xlsx"), asTable = F)
+
+```
+
+```{r CAV_past - APOE e4}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_past ~  APOE_e4 + Edu_tert + Sex + Age + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(CAV_past ~ Edu_tert + Age + Sex + Diagnosis))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "APOE_e4")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_past_s ~ APOE_e4 + Edu_tert + Sex + Age_s + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "APOE_e4"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "APOE_e4"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+CAV_past_APOE <- list("Pooled_lm" = fit_summary,
+                     "Omnibus_D1" = d1_summary,
+                     "Pairwise" = pairwise_summary)
+
+openxlsx::write.xlsx(CAV_past_APOE, here("results", "1_descriptives", "models", "CAV_past_APOEe4.xlsx"), asTable = F)
+
+```
+
+```{r CAV_current - APOE e4}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_current ~  APOE_e4 + Edu_tert + Sex + Age + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(CAV_current ~ Edu_tert + Age + Sex + Diagnosis))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "APOE_e4")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_current_s ~ APOE_e4 + Edu_tert + Sex + Age_s + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "APOE_e4"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "APOE_e4"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+CAV_current_APOE <- list("Pooled_lm" = fit_summary,
+                        "Omnibus_D1" = d1_summary,
+                        "Pairwise" = pairwise_summary)
+
+openxlsx::write.xlsx(CAV_current_APOE, here("results", "1_descriptives", "models", "CAV_current_APOEe4.xlsx"), asTable = F)
+
+```
+
+```{r FAV - APOE e4}
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(FAV ~ APOE_e4 + Edu_tert + Sex + Age + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(FAV ~ Edu_tert + Age + Sex + Diagnosis))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "APOE_e4")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(FAV_s ~ APOE_e4 + Edu_tert + Sex + Age_s + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "APOE_e4"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "APOE_e4"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+FAV_APOE <- list("Pooled_lm" = fit_summary,
+                "Omnibus_D1" = d1_summary,
+                "Pairwise" = pairwise_summary)
+
+openxlsx::write.xlsx(FAV_APOE, here("results", "1_descriptives", "models", "FAV_APOEe4.xlsx"), asTable = F)
+
+```
+
+
+##### - Table
+
+```{r Table APOE e4}
+table_APOE <- data.frame(matrix(ncol=0,nrow=1))
+table_APOE$contrast <- CAV_lifetime_APOE$Pairwise[,"contrast"]
+
+
+table_APOE$CAV_lifetime_Estimate <- paste(round(CAV_lifetime_APOE$Pairwise$estimate,2), " (", 
+                                     round(CAV_lifetime_APOE$Pairwise$SE,2), ")", sep="")
+table_APOE$CAV_lifetime_Estimate_std <- paste(round(CAV_lifetime_APOE$Pairwise$estimate_std,2), " (", 
+                                     round(CAV_lifetime_APOE$Pairwise$SE_std,2), ")", sep="")
+table_APOE$CAV_lifetime_p <- round(CAV_lifetime_APOE$Pairwise$p.value.Tuckey_std, 3)
+
+
+table_APOE$CAV_past_Estimate <- paste(round(CAV_past_APOE$Pairwise$estimate,2), " (", 
+                                 round(CAV_past_APOE$Pairwise$SE,2), ")", sep="")
+table_APOE$CAV_past_Estimate_std <- paste(round(CAV_past_APOE$Pairwise$estimate_std,2), " (", 
+                                 round(CAV_past_APOE$Pairwise$SE_std,2), ")", sep="")
+table_APOE$CAV_past_p <- round(CAV_past_APOE$Pairwise$p.value.Tuckey_std, 3)
+
+
+table_APOE$CAV_current_Estimate <- paste(round(CAV_current_APOE$Pairwise$estimate,2), " (",
+                                    round(CAV_current_APOE$Pairwise$SE,2), ")", sep="")
+table_APOE$CAV_current_Estimate_std <- paste(round(CAV_current_APOE$Pairwise$estimate_std,2), " (",
+                                    round(CAV_current_APOE$Pairwise$SE_std,2), ")", sep="")
+table_APOE$CAV_current_p <- round(CAV_current_APOE$Pairwise$p.value.Tuckey_std, 3)
+
+
+table_APOE$FAV_Estimate <- paste(round(FAV_APOE$Pairwise$estimate,2), " (", 
+                            round(FAV_APOE$Pairwise$SE,2), ")", sep="")
+table_APOE$FAV_Estimate_std <- paste(round(FAV_APOE$Pairwise$estimate_std,2), " (", 
+                            round(FAV_APOE$Pairwise$SE_std,2), ")", sep="")
+table_APOE$FAV_p <- round(FAV_APOE$Pairwise$p.value.Tuckey_std, 3)
+
+
+gt(table_APOE, rownames_to_stub = F) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_lifetime_p, rows = CAV_lifetime_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_past_p, rows = CAV_past_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_current_p, rows = CAV_current_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = FAV_p, rows = FAV_p < 0.05)) %>% 
+  sub_values(values = 0.000, replacement = "<0.001") %>% 
+      gtsave(filename=here("results", "1_descriptives", "tables", "Table_Q_APOEe4.docx"))
+    
+```
+
+
+##### - Plots
+
+```{r Plot - APOE e4 prep data}
+
+if(plot_single_plots) {
+  
+  dat_median <- dat_median %>%
+    mutate(CAV_lifetime_adj = lm(CAV_lifetime_s ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           CAV_past_adj     = lm(CAV_past_s     ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           CAV_current_adj  = lm(CAV_current_s  ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           FAV_adj          = lm(FAV_s          ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid
+    )
+  
+  table_APOE <- table_APOE %>%
+    separate_wider_delim(contrast, delim = " - ", names = c("group1", "group2")) %>%
+    mutate(group1 = gsub("[()]", "", group1),
+           group2 = gsub("[()]", "", group2))
+  
+  CAV_lifetime_table <- table_APOE %>%
+    filter(CAV_lifetime_p <0.05) %>%
+    mutate(CAV_lifetime_p = get_p_stars(CAV_lifetime_p))
+  
+  CAV_past_table <- table_APOE %>%
+    filter(CAV_past_p <0.05) %>%
+    mutate(CAV_past_p = get_p_stars(CAV_past_p))
+  
+  CAV_current_table <- table_APOE %>%
+    filter(CAV_current_p <0.05) %>%
+    mutate(CAV_current_p = get_p_stars(CAV_current_p))
+  
+  FAV_table <- table_APOE %>%
+    filter(FAV_p <0.05) %>%
+    mutate(FAV_p = get_p_stars(FAV_p))
+  
+  
+  #Figures
+  
+  (plot_APOE_CAV_lifetime <- dat_median %>% 
+      ggplot(., aes(x = APOE_e4, y = CAV_lifetime_adj, fill=APOE_e4)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      ggeasy::easy_labs() +
+      scale_fill_brewer(palette = "Dark2") +
+      scale_x_discrete(guide = guide_axis(angle = 25)) +
+      # ylim(-3, 4.5) +
+      ggpubr::geom_bracket(
+        aes(xmin = group1, xmax = group2, label = CAV_lifetime_p),
+        data = CAV_lifetime_table, y.position = c(3.1), inherit.aes = F, tip.length = 0.01)
+  )
+  
+  (plot_APOE_CAV_past<- dat_median %>% 
+      ggplot(., aes(x = APOE_e4, y = CAV_past_adj, fill=APOE_e4)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      ggeasy::easy_labs() +
+      scale_fill_brewer(palette = "Dark2") +
+      scale_x_discrete(guide = guide_axis(angle = 25))
+    # ylim(-3, 4.5) +
+    # ggpubr::geom_bracket(
+    #   aes(xmin = group1, xmax = group2, label = CAV_past_p),
+    #   data = CAV_past_table, y.position = c(3, 3.5, 3.2), inherit.aes = F, tip.length = 0.01)
+  )
+  
+  (plot_APOE_CAV_current <- dat_median %>% 
+      ggplot(., aes(x = APOE_e4, y = CAV_current_adj, fill=APOE_e4)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      ggeasy::easy_labs() +
+      scale_fill_brewer(palette = "Dark2") +
+      scale_x_discrete(guide = guide_axis(angle = 25)) +
+      # ylim(-3, 4.5) +
+      ggpubr::geom_bracket(
+        aes(xmin = group1, xmax = group2, label = CAV_current_p),
+        data = CAV_current_table, y.position = c(3), inherit.aes = F, tip.length = 0.01)
+  )
+  
+  (plot_APOE_FAV <- dat_median %>% 
+      ggplot(., aes(x = APOE_e4, y = FAV_adj, fill=APOE_e4)) + 
+      ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+      geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+      ggeasy::easy_labs() +
+      scale_fill_brewer(palette = "Dark2") +
+      scale_x_discrete(guide = guide_axis(angle = 25)) +
+      ylim(-2.2, 6.2) +
+      ggpubr::geom_bracket(
+        aes(xmin = group1, xmax = group2, label = FAV_p),
+        data = FAV_table, y.position = c(5.7), inherit.aes = F, tip.length = 0.01)
+  )
+  
+  
+  ggsave(plot = plot_APOE_CAV_lifetime,
+         filename = here("results", "1_descriptives", "figures", "APOE_CAV_lifetime_adj.pdf"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_APOE_CAV_past,
+         filename = here("results", "1_descriptives", "figures", "APOE_CAV_past_adj.pdf"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_APOE_CAV_current,
+         filename = here("results", "1_descriptives", "figures", "APOE_CAV_current_adj.pdf"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_APOE_FAV,
+         filename = here("results", "1_descriptives", "figures", "APOE_FAV_adj.pdf"),
+         width = 9, height = 5)
+  
+  
+  
+  ggsave(plot = plot_APOE_CAV_lifetime,
+         filename = here("results", "1_descriptives", "figures", "APOE_CAV_lifetime_adj.png"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_APOE_CAV_past,
+         filename = here("results", "1_descriptives", "figures", "APOE_CAV_past_adj.png"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_APOE_CAV_current,
+         filename = here("results", "1_descriptives", "figures", "APOE_CAV_current_adj.png"),
+         width = 9, height = 5)
+  
+  ggsave(plot = plot_APOE_FAV,
+         filename = here("results", "1_descriptives", "figures", "APOE_FAV_adj.png"),
+         width = 9, height = 5)
+  
+}
+```
+
+
+
+
+
+#### by APOE grouped
+
+##### - Models
+
+```{r CAV_lifetime - APOE}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_lifetime ~ APOE_grouped + Edu_tert + Sex + Age + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(CAV_lifetime ~ Edu_tert + Age + Sex + Diagnosis))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "APOE_grouped")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_lifetime_s ~ APOE_grouped + Edu_tert + Sex + Age_s + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "APOE_grouped"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "APOE_grouped"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+CAV_lifetime_APOE_g <- list("Pooled_lm" = fit_summary,
+                         "Omnibus_D1" = d1_summary,
+                         "Pairwise" = pairwise_summary)
+
+openxlsx::write.xlsx(CAV_lifetime_APOE_g, here("results", "1_descriptives", "models", "CAV_lifetime_APOE_g.xlsx"), asTable = F)
+
+```
+
+```{r CAV_past - APOE}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_past ~  APOE_grouped + Edu_tert + Sex + Age + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(CAV_past ~ Edu_tert + Age + Sex + Diagnosis))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "APOE_grouped")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_past_s ~ APOE_grouped + Edu_tert + Sex + Age_s + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "APOE_grouped"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "APOE_grouped"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+CAV_past_APOE_g <- list("Pooled_lm" = fit_summary,
+                     "Omnibus_D1" = d1_summary,
+                     "Pairwise" = pairwise_summary)
+
+openxlsx::write.xlsx(CAV_past_APOE_g, here("results", "1_descriptives", "models", "CAV_past_APOE_g.xlsx"), asTable = F)
+
+```
+
+```{r CAV_current - APOE}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_current ~  APOE_grouped + Edu_tert + Sex + Age + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(CAV_current ~ Edu_tert + Age + Sex + Diagnosis))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "APOE_grouped")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_current_s ~ APOE_grouped + Edu_tert + Sex + Age_s + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "APOE_grouped"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "APOE_grouped"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+CAV_current_APOE_g <- list("Pooled_lm" = fit_summary,
+                        "Omnibus_D1" = d1_summary,
+                        "Pairwise" = pairwise_summary)
+
+openxlsx::write.xlsx(CAV_current_APOE_g, here("results", "1_descriptives", "models", "CAV_current_APOE_g.xlsx"), asTable = F)
+
+```
+
+```{r FAV - APOE}
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(FAV ~ APOE_grouped + Edu_tert + Sex + Age + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# Omnibus test for Diagnosis
+fit_reduced <- with(datmids, lm(FAV ~ Edu_tert + Age + Sex + Diagnosis))
+d1_summary <- summary(D1(fit, fit_reduced))
+d1_summary <- cbind(data.frame(d1_summary$models), data.frame(d1_summary$comparisons))
+
+# Pairwise comparisons
+pairwisecomp <- emmeans::emmeans(fit, "APOE_grouped")
+pairwise_summary <- data.frame(pairs(pairwisecomp, adjust="none"))
+pairwise_summary$p.value.Tuckey <- data.frame(pairs(pairwisecomp, adjust="Tukey"))$p.value
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(FAV_s ~ APOE_grouped + Edu_tert + Sex + Age_s + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "APOE_grouped"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "APOE_grouped"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+pairwise_summary <- cbind(pairwise_summary, pairwise_summary_s)
+
+FAV_APOE_g <- list("Pooled_lm" = fit_summary,
+                "Omnibus_D1" = d1_summary,
+                "Pairwise" = pairwise_summary)
+
+openxlsx::write.xlsx(FAV_APOE_g, here("results", "1_descriptives", "models", "FAV_APOE_g.xlsx"), asTable = F)
+
+```
+
+
+##### - Table
+
+```{r Table - APOE grouped}
+
+table_APOE_g <- data.frame(matrix(ncol=0,nrow=6))
+table_APOE_g$contrast <- CAV_lifetime_APOE_g$Pairwise[,"contrast"]
+
+
+table_APOE_g$CAV_lifetime_Estimate <- paste(round(CAV_lifetime_APOE_g$Pairwise$estimate,2), " (", 
+                                     round(CAV_lifetime_APOE_g$Pairwise$SE,2), ")", sep="")
+table_APOE_g$CAV_lifetime_Estimate_std <- paste(round(CAV_lifetime_APOE_g$Pairwise$estimate_std,2), " (", 
+                                     round(CAV_lifetime_APOE_g$Pairwise$SE_std,2), ")", sep="")
+table_APOE_g$CAV_lifetime_p <- round(CAV_lifetime_APOE_g$Pairwise$p.value.Tuckey_std, 3)
+
+
+table_APOE_g$CAV_past_Estimate <- paste(round(CAV_past_APOE_g$Pairwise$estimate,2), " (", 
+                                 round(CAV_past_APOE_g$Pairwise$SE,2), ")", sep="")
+table_APOE_g$CAV_past_Estimate_std <- paste(round(CAV_past_APOE_g$Pairwise$estimate_std,2), " (", 
+                                 round(CAV_past_APOE_g$Pairwise$SE_std,2), ")", sep="")
+table_APOE_g$CAV_past_p <- round(CAV_past_APOE_g$Pairwise$p.value.Tuckey_std, 3)
+
+
+table_APOE_g$CAV_current_Estimate <- paste(round(CAV_current_APOE_g$Pairwise$estimate,2), " (",
+                                    round(CAV_current_APOE_g$Pairwise$SE,2), ")", sep="")
+table_APOE_g$CAV_current_Estimate_std <- paste(round(CAV_current_APOE_g$Pairwise$estimate_std,2), " (",
+                                    round(CAV_current_APOE_g$Pairwise$SE_std,2), ")", sep="")
+table_APOE_g$CAV_current_p <- round(CAV_current_APOE_g$Pairwise$p.value.Tuckey_std, 3)
+
+
+table_APOE_g$FAV_Estimate <- paste(round(FAV_APOE_g$Pairwise$estimate,2), " (", 
+                            round(FAV_APOE_g$Pairwise$SE,2), ")", sep="")
+table_APOE_g$FAV_Estimate_std <- paste(round(FAV_APOE_g$Pairwise$estimate_std,2), " (", 
+                            round(FAV_APOE_g$Pairwise$SE_std,2), ")", sep="")
+table_APOE_g$FAV_p <- round(FAV_APOE_g$Pairwise$p.value.Tuckey_std, 3)
+
+
+gt(table_APOE_g, rownames_to_stub = F) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_lifetime_p, rows = CAV_lifetime_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_past_p, rows = CAV_past_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_current_p, rows = CAV_current_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = FAV_p, rows = FAV_p < 0.05)) %>% 
+  sub_values(values = 0.000, replacement = "<0.001") %>% 
+      gtsave(filename=here("results", "1_descriptives", "tables", "Table_Q_APOE_g.docx"))
+    
+```
+
+
+
+#### with AGE
+
+##### - Models
+
+```{r CAV_lifetime - AGE}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_lifetime ~ Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_lifetime_s ~ Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_lifetime_AGE <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_lifetime_AGE, here("results", "1_descriptives", "models", "CAV_lifetime_AGE.xlsx"), asTable = F)
+
+```
+
+```{r CAV_past - AGE}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_past ~ Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_past_s ~ Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_past_AGE <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_past_AGE, here("results", "1_descriptives", "models", "CAV_past_AGE.xlsx"), asTable = F)
+
+```
+
+```{r CAV_current - AGE}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_current ~ Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_current_s ~ Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_current_AGE <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_current_AGE, here("results", "1_descriptives", "models", "CAV_current_AGE.xlsx"), asTable = F)
+
+```
+
+```{r FAV - AGE}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(FAV ~ Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(FAV_s ~ Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+FAV_AGE <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(FAV_AGE, here("results", "1_descriptives", "models", "FAV_AGE.xlsx"), asTable = F)
+
+```
+
+##### - Table
+
+```{r Table - AGE}
+
+table_AGE <- data.frame(matrix(ncol=0,nrow=1))
+table_AGE$contrast <- "Age"
+
+
+table_AGE$CAV_lifetime_Estimate <- paste(round(CAV_lifetime_AGE$Pooled_lm$estimate,2), " (", 
+                                     round(CAV_lifetime_AGE$Pooled_lm$std.error,2), ")", sep="")[2]
+table_AGE$CAV_lifetime_Estimate_std <- paste(round(CAV_lifetime_AGE$Pooled_lm$estimate_std,2), " (", 
+                                     round(CAV_lifetime_AGE$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_AGE$CAV_lifetime_p <- round(CAV_lifetime_AGE$Pooled_lm$p.value_std, 3)[2]
+
+
+table_AGE$CAV_past_Estimate <- paste(round(CAV_past_AGE$Pooled_lm$estimate,2), " (", 
+                                 round(CAV_past_AGE$Pooled_lm$std.error,2), ")", sep="")[2]
+table_AGE$CAV_past_Estimate_std <- paste(round(CAV_past_AGE$Pooled_lm$estimate_std,2), " (", 
+                                 round(CAV_past_AGE$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_AGE$CAV_past_p <- round(CAV_past_AGE$Pooled_lm$p.value_std, 3)[2]
+
+
+table_AGE$CAV_current_Estimate <- paste(round(CAV_current_AGE$Pooled_lm$estimate,2), " (",
+                                    round(CAV_current_AGE$Pooled_lm$std.error,2), ")", sep="")[2]
+table_AGE$CAV_current_Estimate_std <- paste(round(CAV_current_AGE$Pooled_lm$estimate_std,2), " (",
+                                    round(CAV_current_AGE$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_AGE$CAV_current_p <- round(CAV_current_AGE$Pooled_lm$p.value_std, 3)[2]
+
+
+table_AGE$FAV_Estimate <- paste(round(FAV_AGE$Pooled_lm$estimate,2), " (", 
+                            round(FAV_AGE$Pooled_lm$std.error,2), ")", sep="")[2]
+table_AGE$FAV_Estimate_std <- paste(round(FAV_AGE$Pooled_lm$estimate_std,2), " (", 
+                            round(FAV_AGE$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_AGE$FAV_p <- round(FAV_AGE$Pooled_lm$p.value_std, 3)[2]
+
+
+gt(table_AGE, rownames_to_stub = F) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_lifetime_p, rows = CAV_lifetime_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_past_p, rows = CAV_past_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_current_p, rows = CAV_current_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = FAV_p, rows = FAV_p < 0.05)) %>% 
+  sub_values(values = 0.000, replacement = "<0.001") %>% 
+      gtsave(filename=here("results", "1_descriptives", "tables", "Table_Q_AGE.docx"))
+    
+```
+
+##### - Plots
+
+```{r Plots - AGE prep data}
+
+if(plot_single_plots) {
+  
+  dat_median <- dat_median %>%
+    mutate(Age_adj          = lm(Age_s          ~ Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           CAV_lifetime_adj = lm(CAV_lifetime_s ~ Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           CAV_past_adj     = lm(CAV_past_s     ~ Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           CAV_current_adj  = lm(CAV_current_s  ~ Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           FAV_adj          = lm(FAV_s          ~ Sex + Edu_tert + Diagnosis, data=dat_median)$resid
+    )
+  
+  # FIgures
+  
+  w = 5
+  h = 5
+  
+  (plot_AGE_CAV_lifetime <- dat_median %>% 
+      ggplot(., aes(x = Age_adj, y = CAV_lifetime_adj)) + 
+      geom_point(alpha=0.3) + 
+      stat_smooth(method="lm", fullrange=TRUE)
+  )
+  
+  (plot_AGE_CAV_past <- dat_median %>% 
+      ggplot(., aes(x = Age_adj, y = CAV_past_adj)) + 
+      geom_point(alpha=0.3) + 
+      stat_smooth(method="lm", fullrange=TRUE)
+  )
+  
+  (plot_AGE_CAV_current <- dat_median %>% 
+      ggplot(., aes(x = Age_adj, y = CAV_current_adj)) + 
+      geom_point(alpha=0.3) + 
+      stat_smooth(method="lm", fullrange=TRUE)
+  )
+  
+  (plot_AGE_FAV <- dat_median %>% 
+      ggplot(., aes(x = Age_adj, y = FAV_adj)) + 
+      geom_point(alpha=0.3) + 
+      stat_smooth(method="lm", fullrange=TRUE)
+  )
+  
+  (plot_AGE <- dat_median %>% 
+      ggplot(.) + 
+      stat_smooth(aes(x = Age_adj, y = CAV_lifetime_adj), method="lm", fullrange=TRUE, color="#5465FF", fill = "#99A3FF", se=F) +
+      stat_smooth(aes(x = Age_adj, y = CAV_past_adj), method="lm", fullrange=TRUE, color="#788bff", fill = "#D6DCFF", se=F) +
+      stat_smooth(aes(x = Age_adj, y = CAV_current_adj), method="lm", fullrange=TRUE, color="#9BB1FF", fill = "#EBEFFF", se=F) +
+      stat_smooth(aes(x = Age_adj, y = FAV_adj), method="lm", fullrange=TRUE, color="#FF7F51", fill = "#F7A072", se=F)
+  )
+  
+  
+  ggsave(plot = plot_AGE_CAV_lifetime,
+         filename = here("results", "1_descriptives", "figures", "AGE_CAV_lifetime_adj.pdf"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_AGE_CAV_past,
+         filename = here("results", "1_descriptives", "figures", "AGE_CAV_past_adj.pdf"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_AGE_CAV_current,
+         filename = here("results", "1_descriptives", "figures", "AGE_CAV_current_adj.pdf"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_AGE_FAV,
+         filename = here("results", "1_descriptives", "figures", "AGE_FAV_adj.pdf"),
+         width = w, height = h)
+  
+  
+  
+  ggsave(plot = plot_AGE_CAV_lifetime,
+         filename = here("results", "1_descriptives", "figures", "AGE_CAV_lifetime_adj.png"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_AGE_CAV_past,
+         filename = here("results", "1_descriptives", "figures", "AGE_CAV_past_adj.png"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_AGE_CAV_current,
+         filename = here("results", "1_descriptives", "figures", "AGE_CAV_current_adj.png"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_AGE_FAV,
+         filename = here("results", "1_descriptives", "figures", "AGE_FAV_adj.png"),
+         width = w, height = h)
+  
+  
+  ggsave(plot = plot_AGE,
+         filename = here("results", "1_descriptives", "figures", "AGE_all_adj.png"),
+         width = w, height = h)
+}
+```
+
+
+
+
+#### with MMSE
+
+##### - Models
+
+```{r CAV_lifetime - MMSE}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_lifetime ~ MMSE + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_lifetime_s ~ MMSE_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_lifetime_MMSE <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_lifetime_MMSE, here("results", "1_descriptives", "models", "CAV_lifetime_MMSE.xlsx"), asTable = F)
+
+```
+
+```{r CAV_past - MMSE}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_past ~ MMSE + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_past_s ~ MMSE_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_past_MMSE <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_past_MMSE, here("results", "1_descriptives", "models", "CAV_past_MMSE.xlsx"), asTable = F)
+
+```
+
+```{r CAV_current - MMSE}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_current ~ MMSE + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_current_s ~ MMSE_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_current_MMSE <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_current_MMSE, here("results", "1_descriptives", "models", "CAV_current_MMSE.xlsx"), asTable = F)
+
+```
+
+```{r FAV - MMSE}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(FAV ~ MMSE + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(FAV_s ~ MMSE_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+FAV_MMSE <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(FAV_MMSE, here("results", "1_descriptives", "models", "FAV_MMSE.xlsx"), asTable = F)
+
+```
+
+##### - Table
+
+```{r Table - MMSE}
+
+table_MMSE <- data.frame(matrix(ncol=0,nrow=1))
+table_MMSE$contrast <- "MMSE"
+
+
+table_MMSE$CAV_lifetime_Estimate <- paste(round(CAV_lifetime_MMSE$Pooled_lm$estimate,2), " (", 
+                                     round(CAV_lifetime_MMSE$Pooled_lm$std.error,2), ")", sep="")[2]
+table_MMSE$CAV_lifetime_Estimate_std <- paste(round(CAV_lifetime_MMSE$Pooled_lm$estimate_std,2), " (", 
+                                     round(CAV_lifetime_MMSE$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_MMSE$CAV_lifetime_p <- round(CAV_lifetime_MMSE$Pooled_lm$p.value_std, 3)[2]
+
+
+table_MMSE$CAV_past_Estimate <- paste(round(CAV_past_MMSE$Pooled_lm$estimate,2), " (", 
+                                 round(CAV_past_MMSE$Pooled_lm$std.error,2), ")", sep="")[2]
+table_MMSE$CAV_past_Estimate_std <- paste(round(CAV_past_MMSE$Pooled_lm$estimate_std,2), " (", 
+                                 round(CAV_past_MMSE$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_MMSE$CAV_past_p <- round(CAV_past_MMSE$Pooled_lm$p.value_std, 3)[2]
+
+
+table_MMSE$CAV_current_Estimate <- paste(round(CAV_current_MMSE$Pooled_lm$estimate,2), " (",
+                                    round(CAV_current_MMSE$Pooled_lm$std.error,2), ")", sep="")[2]
+table_MMSE$CAV_current_Estimate_std <- paste(round(CAV_current_MMSE$Pooled_lm$estimate_std,2), " (",
+                                    round(CAV_current_MMSE$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_MMSE$CAV_current_p <- round(CAV_current_MMSE$Pooled_lm$p.value_std, 3)[2]
+
+
+table_MMSE$FAV_Estimate <- paste(round(FAV_MMSE$Pooled_lm$estimate,2), " (", 
+                            round(FAV_MMSE$Pooled_lm$std.error,2), ")", sep="")[2]
+table_MMSE$FAV_Estimate_std <- paste(round(FAV_MMSE$Pooled_lm$estimate_std,2), " (", 
+                            round(FAV_MMSE$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_MMSE$FAV_p <- round(FAV_MMSE$Pooled_lm$p.value_std, 3)[2]
+
+gt(table_MMSE, rownames_to_stub = F) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_lifetime_p, rows = CAV_lifetime_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_past_p, rows = CAV_past_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_current_p, rows = CAV_current_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = FAV_p, rows = FAV_p < 0.05)) %>% 
+  sub_values(values = 0.000, replacement = "<0.001") %>% 
+      gtsave(filename=here("results", "1_descriptives", "tables", "Table_Q_MMSE.docx"))
+    
+```
+
+##### - Plots
+
+```{r Plots - MMSE prep data}
+
+if(plot_single_plots) {
+  
+  dat_median <- dat_median %>%
+    mutate(MMSE_adj         = lm(MMSE_s ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           CAV_lifetime_adj = lm(CAV_lifetime_s ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           CAV_past_adj     = lm(CAV_past_s     ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           CAV_current_adj  = lm(CAV_current_s  ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           FAV_adj          = lm(FAV_s          ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid
+    )
+  
+  # Figures
+  
+  w = 5
+  h = 5
+  
+  
+  (plot_MMSE_CAV_lifetime <- dat_median %>% 
+      ggplot(., aes(x = MMSE_adj, y = CAV_lifetime_adj)) + 
+      geom_point(alpha=0.3) + 
+      stat_smooth(method="lm", fullrange=TRUE)
+  )
+  
+  (plot_MMSE_CAV_past <- dat_median %>% 
+      ggplot(., aes(x = MMSE_adj, y = CAV_past_adj)) + 
+      geom_point(alpha=0.3) + 
+      stat_smooth(method="lm", fullrange=TRUE)
+  )
+  
+  (plot_MMSE_CAV_current <- dat_median %>% 
+      ggplot(., aes(x = MMSE_adj, y = CAV_current_adj)) + 
+      geom_point(alpha=0.3) + 
+      stat_smooth(method="lm", fullrange=TRUE)
+  )
+  
+  (plot_MMSE_FAV <- dat_median %>% 
+      ggplot(., aes(x = MMSE_adj, y = FAV_adj)) + 
+      geom_point(alpha=0.3) + 
+      stat_smooth(method="lm", fullrange=TRUE)
+  )
+  
+  
+  (plot_MMSE <- dat_median %>% 
+      ggplot(.) + 
+      stat_smooth(aes(x = MMSE_adj, y = CAV_lifetime_adj), method="lm", fullrange=TRUE, color="#5465FF", fill = "#99A3FF", se=F) +
+      stat_smooth(aes(x = MMSE_adj, y = CAV_past_adj), method="lm", fullrange=TRUE, color="#788bff", fill = "#D6DCFF", se=F) +
+      stat_smooth(aes(x = MMSE_adj, y = CAV_current_adj), method="lm", fullrange=TRUE, color="#9BB1FF", fill = "#EBEFFF", se=F) +
+      stat_smooth(aes(x = MMSE_adj, y = FAV_adj), method="lm", fullrange=TRUE, color="#FF7F51", fill = "#F7A072", se=F)
+  )
+  
+  
+  
+  ggsave(plot = plot_MMSE_CAV_lifetime,
+         filename = here("results", "1_descriptives", "figures", "MMSE_CAV_lifetime_adj.pdf"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_MMSE_CAV_past,
+         filename = here("results", "1_descriptives", "figures", "MMSE_CAV_past_adj.pdf"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_MMSE_CAV_current,
+         filename = here("results", "1_descriptives", "figures", "MMSE_CAV_current_adj.pdf"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_MMSE_FAV,
+         filename = here("results", "1_descriptives", "figures", "MMSE_FAV_adj.pdf"),
+         width = w, height = h)
+}
+```
+
+
+
+#### with MEM
+
+##### - Models
+
+```{r CAV_lifetime - MEM}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_lifetime ~ MEM + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_lifetime_s ~ MEM_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_lifetime_MEM <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_lifetime_MEM, here("results", "1_descriptives", "models", "CAV_lifetime_MEM.xlsx"), asTable = F)
+
+```
+
+```{r CAV_past - MEM}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_past ~ MEM + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_past_s ~ MEM_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_past_MEM <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_past_MEM, here("results", "1_descriptives", "models", "CAV_past_MEM.xlsx"), asTable = F)
+
+```
+
+```{r CAV_current - MEM}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_current ~ MEM + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_current_s ~ MEM_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_current_MEM <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_current_MEM, here("results", "1_descriptives", "models", "CAV_current_MEM.xlsx"), asTable = F)
+
+```
+
+```{r FAV - MEM}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(FAV ~ MEM + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(FAV_s ~ MEM_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+FAV_MEM <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(FAV_MEM, here("results", "1_descriptives", "models", "FAV_MEM.xlsx"), asTable = F)
+
+```
+
+##### - Table
+
+```{r Table - MEM}
+
+table_MEM <- data.frame(matrix(ncol=0,nrow=1))
+table_MEM$contrast <- "MEM"
+
+
+table_MEM$CAV_lifetime_Estimate <- paste(round(CAV_lifetime_MEM$Pooled_lm$estimate,2), " (", 
+                                     round(CAV_lifetime_MEM$Pooled_lm$std.error,2), ")", sep="")[2]
+table_MEM$CAV_lifetime_Estimate_std <- paste(round(CAV_lifetime_MEM$Pooled_lm$estimate_std,2), " (", 
+                                     round(CAV_lifetime_MEM$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_MEM$CAV_lifetime_p <- round(CAV_lifetime_MEM$Pooled_lm$p.value_std, 3)[2]
+
+
+table_MEM$CAV_past_Estimate <- paste(round(CAV_past_MEM$Pooled_lm$estimate,2), " (", 
+                                 round(CAV_past_MEM$Pooled_lm$std.error,2), ")", sep="")[2]
+table_MEM$CAV_past_Estimate_std <- paste(round(CAV_past_MEM$Pooled_lm$estimate_std,2), " (", 
+                                 round(CAV_past_MEM$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_MEM$CAV_past_p <- round(CAV_past_MEM$Pooled_lm$p.value_std, 3)[2]
+
+
+table_MEM$CAV_current_Estimate <- paste(round(CAV_current_MEM$Pooled_lm$estimate,2), " (",
+                                    round(CAV_current_MEM$Pooled_lm$std.error,2), ")", sep="")[2]
+table_MEM$CAV_current_Estimate_std <- paste(round(CAV_current_MEM$Pooled_lm$estimate_std,2), " (",
+                                    round(CAV_current_MEM$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_MEM$CAV_current_p <- round(CAV_current_MEM$Pooled_lm$p.value_std, 3)[2]
+
+
+table_MEM$FAV_Estimate <- paste(round(FAV_MEM$Pooled_lm$estimate,2), " (", 
+                            round(FAV_MEM$Pooled_lm$std.error,2), ")", sep="")[2]
+table_MEM$FAV_Estimate_std <- paste(round(FAV_MEM$Pooled_lm$estimate_std,2), " (", 
+                            round(FAV_MEM$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_MEM$FAV_p <- round(FAV_MEM$Pooled_lm$p.value_std, 3)[2]
+
+gt(table_MEM, rownames_to_stub = F) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_lifetime_p, rows = CAV_lifetime_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_past_p, rows = CAV_past_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_current_p, rows = CAV_current_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = FAV_p, rows = FAV_p < 0.05)) %>% 
+  sub_values(values = 0.000, replacement = "<0.001") %>% 
+      gtsave(filename=here("results", "1_descriptives", "tables", "Table_Q_MEM.docx"))
+    
+```
+
+##### - Plots
+
+```{r Plots - MEM prep data}
+
+if(plot_single_plots) {
+  
+  dat_median <- dat_median %>%
+    mutate(MEM_adj         = lm(MEM_s ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           CAV_lifetime_adj = lm(CAV_lifetime_s ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           CAV_past_adj     = lm(CAV_past_s     ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           CAV_current_adj  = lm(CAV_current_s  ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           FAV_adj          = lm(FAV_s          ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid
+    )
+  
+  #Figures
+  
+  w = 5
+  h = 5
+  
+  (plot_MEM_CAV_lifetime <- dat_median %>% 
+      ggplot(., aes(x = MEM_adj, y = CAV_lifetime_adj)) + 
+      geom_point(alpha=0.3) + 
+      stat_smooth(method="lm", fullrange=TRUE)
+  )
+  
+  (plot_MEM_CAV_past <- dat_median %>% 
+      ggplot(., aes(x = MEM_adj, y = CAV_past_adj)) + 
+      geom_point(alpha=0.3) + 
+      stat_smooth(method="lm", fullrange=TRUE)
+  )
+  
+  (plot_MEM_CAV_current <- dat_median %>% 
+      ggplot(., aes(x = MEM_adj, y = CAV_current_adj)) + 
+      geom_point(alpha=0.3) + 
+      stat_smooth(method="lm", fullrange=TRUE)
+  )
+  
+  (plot_MEM_FAV <- dat_median %>% 
+      ggplot(., aes(x = MEM_adj, y = FAV_adj)) + 
+      geom_point(alpha=0.3) + 
+      stat_smooth(method="lm", fullrange=TRUE)
+  )
+  
+  
+  (plot_MEM <- dat_median %>% 
+      ggplot(.) + 
+      stat_smooth(aes(x = MEM_adj, y = CAV_lifetime_adj), method="lm", fullrange=TRUE, color="#5465FF", fill = "#99A3FF", se=F) +
+      stat_smooth(aes(x = MEM_adj, y = CAV_past_adj), method="lm", fullrange=TRUE, color="#788bff", fill = "#D6DCFF", se=F) +
+      stat_smooth(aes(x = MEM_adj, y = CAV_current_adj), method="lm", fullrange=TRUE, color="#9BB1FF", fill = "#EBEFFF", se=F) +
+      stat_smooth(aes(x = MEM_adj, y = FAV_adj), method="lm", fullrange=TRUE, color="#FF7F51", fill = "#F7A072", se=F)
+  )
+  
+  
+  
+  ggsave(plot = plot_MEM_CAV_lifetime,
+         filename = here("results", "1_descriptives", "figures", "MEM_CAV_lifetime_adj.pdf"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_MEM_CAV_past,
+         filename = here("results", "1_descriptives", "figures", "MEM_CAV_past_adj.pdf"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_MEM_CAV_current,
+         filename = here("results", "1_descriptives", "figures", "MEM_CAV_current_adj.pdf"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_MEM_FAV,
+         filename = here("results", "1_descriptives", "figures", "MEM_FAV_adj.pdf"),
+         width = w, height = h)
+  
+  
+  
+  ggsave(plot = plot_MEM_CAV_lifetime,
+         filename = here("results", "1_descriptives", "figures", "MEM_CAV_lifetime_adj.png"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_MEM_CAV_past,
+         filename = here("results", "1_descriptives", "figures", "MEM_CAV_past_adj.png"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_MEM_CAV_current,
+         filename = here("results", "1_descriptives", "figures", "MEM_CAV_current_adj.png"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_MEM_FAV,
+         filename = here("results", "1_descriptives", "figures", "MEM_FAV_adj.png"),
+         width = w, height = h)
+  
+  
+  ggsave(plot = plot_MEM,
+         filename = here("results", "1_descriptives", "figures", "MEM_all_adj.png"),
+         width = w, height = h)
+  
+}
+```
+
+
+
+
+
+#### with EXEC
+
+##### - Models
+
+```{r CAV_lifetime - EXEC}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_lifetime ~ EXEC + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_lifetime_s ~ EXEC_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_lifetime_EXEC <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_lifetime_EXEC, here("results", "1_descriptives", "models", "CAV_lifetime_EXEC.xlsx"), asTable = F)
+
+```
+
+```{r CAV_past - EXEC}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_past ~ EXEC + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_past_s ~ EXEC_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_past_EXEC <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_past_EXEC, here("results", "1_descriptives", "models", "CAV_past_EXEC.xlsx"), asTable = F)
+
+```
+
+```{r CAV_current - EXEC}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_current ~ EXEC + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_current_s ~ EXEC_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_current_EXEC <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_current_EXEC, here("results", "1_descriptives", "models", "CAV_current_EXEC.xlsx"), asTable = F)
+
+```
+
+```{r FAV - EXEC}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(FAV ~ EXEC + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(FAV_s ~ EXEC_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+FAV_EXEC <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(FAV_EXEC, here("results", "1_descriptives", "models", "FAV_EXEC.xlsx"), asTable = F)
+
+```
+
+
+##### - Table
+
+```{r Table - EXEC}
+
+table_EXEC <- data.frame(matrix(ncol=0,nrow=1))
+table_EXEC$contrast <- "EXEC"
+
+
+table_EXEC$CAV_lifetime_Estimate <- paste(round(CAV_lifetime_EXEC$Pooled_lm$estimate,2), " (", 
+                                     round(CAV_lifetime_EXEC$Pooled_lm$std.error,2), ")", sep="")[2]
+table_EXEC$CAV_lifetime_Estimate_std <- paste(round(CAV_lifetime_EXEC$Pooled_lm$estimate_std,2), " (", 
+                                     round(CAV_lifetime_EXEC$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_EXEC$CAV_lifetime_p <- round(CAV_lifetime_EXEC$Pooled_lm$p.value_std, 3)[2]
+
+
+table_EXEC$CAV_past_Estimate <- paste(round(CAV_past_EXEC$Pooled_lm$estimate,2), " (", 
+                                 round(CAV_past_EXEC$Pooled_lm$std.error,2), ")", sep="")[2]
+table_EXEC$CAV_past_Estimate_std <- paste(round(CAV_past_EXEC$Pooled_lm$estimate_std,2), " (", 
+                                 round(CAV_past_EXEC$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_EXEC$CAV_past_p <- round(CAV_past_EXEC$Pooled_lm$p.value_std, 3)[2]
+
+
+table_EXEC$CAV_current_Estimate <- paste(round(CAV_current_EXEC$Pooled_lm$estimate,2), " (",
+                                    round(CAV_current_EXEC$Pooled_lm$std.error,2), ")", sep="")[2]
+table_EXEC$CAV_current_Estimate_std <- paste(round(CAV_current_EXEC$Pooled_lm$estimate_std,2), " (",
+                                    round(CAV_current_EXEC$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_EXEC$CAV_current_p <- round(CAV_current_EXEC$Pooled_lm$p.value_std, 3)[2]
+
+
+table_EXEC$FAV_Estimate <- paste(round(FAV_EXEC$Pooled_lm$estimate,2), " (", 
+                            round(FAV_EXEC$Pooled_lm$std.error,2), ")", sep="")[2]
+table_EXEC$FAV_Estimate_std <- paste(round(FAV_EXEC$Pooled_lm$estimate_std,2), " (", 
+                            round(FAV_EXEC$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_EXEC$FAV_p <- round(FAV_EXEC$Pooled_lm$p.value_std, 3)[2]
+
+gt(table_EXEC, rownames_to_stub = F) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_lifetime_p, rows = CAV_lifetime_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_past_p, rows = CAV_past_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_current_p, rows = CAV_current_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = FAV_p, rows = FAV_p < 0.05)) %>% 
+  sub_values(values = 0.000, replacement = "<0.001") %>% 
+  gtsave(filename=here("results", "1_descriptives", "tables", "Table_Q_EXEC.docx"))
+    
+```
+
+##### - Plots
+
+```{r Plots - EXEC prep data}
+
+if(plot_single_plots) {
+  
+  dat_median <- dat_median %>%
+    mutate(EXEC_adj         = lm(EXEC_s         ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           CAV_lifetime_adj = lm(CAV_lifetime_s ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           CAV_past_adj     = lm(CAV_past_s     ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           CAV_current_adj  = lm(CAV_current_s  ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           FAV_adj          = lm(FAV_s          ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid
+    )
+  
+  # Figure
+  
+  w = 5
+  h = 5
+  
+  (plot_EXEC_CAV_lifetime <- dat_median %>% 
+      ggplot(., aes(x = EXEC_adj, y = CAV_lifetime_adj)) + 
+      geom_point(alpha=0.3) + 
+      stat_smooth(method="lm", fullrange=TRUE)
+  )
+  
+  (plot_EXEC_CAV_past <- dat_median %>% 
+      ggplot(., aes(x = EXEC_adj, y = CAV_past_adj)) + 
+      geom_point(alpha=0.3) + 
+      stat_smooth(method="lm", fullrange=TRUE)
+  )
+  
+  (plot_EXEC_CAV_current <- dat_median %>% 
+      ggplot(., aes(x = EXEC_adj, y = CAV_current_adj)) + 
+      geom_point(alpha=0.3) + 
+      stat_smooth(method="lm", fullrange=TRUE)
+  )
+  
+  (plot_EXEC_FAV <- dat_median %>% 
+      ggplot(., aes(x = EXEC_adj, y = FAV_adj)) + 
+      geom_point(alpha=0.3) + 
+      stat_smooth(method="lm", fullrange=TRUE)
+  )
+  
+  
+  (plot_EXEC <- dat_median %>% 
+      ggplot(.) + 
+      stat_smooth(aes(x = EXEC_adj, y = CAV_lifetime_adj), method="lm", fullrange=TRUE, color="#5465FF", fill = "#99A3FF", se=T) +
+      stat_smooth(aes(x = EXEC_adj, y = CAV_past_adj), method="lm", fullrange=TRUE, color="#788bff", fill = "#D6DCFF", se=T) +
+      stat_smooth(aes(x = EXEC_adj, y = CAV_current_adj), method="lm", fullrange=TRUE, color="#9BB1FF", fill = "#EBEFFF", se=T) +
+      stat_smooth(aes(x = EXEC_adj, y = FAV_adj), method="lm", fullrange=TRUE, color="#FF7F51", fill = "#F7A072", se=T)
+  )
+  
+  
+  
+  ggsave(plot = plot_EXEC_CAV_lifetime,
+         filename = here("results", "1_descriptives", "figures", "EXEC_CAV_lifetime_adj.pdf"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_EXEC_CAV_past,
+         filename = here("results", "1_descriptives", "figures", "EXEC_CAV_past_adj.pdf"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_EXEC_CAV_current,
+         filename = here("results", "1_descriptives", "figures", "EXEC_CAV_current_adj.pdf"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_EXEC_FAV,
+         filename = here("results", "1_descriptives", "figures", "EXEC_FAV_adj.pdf"),
+         width = w, height = h)
+  
+  
+  
+  ggsave(plot = plot_EXEC_CAV_lifetime,
+         filename = here("results", "1_descriptives", "figures", "EXEC_CAV_lifetime_adj.png"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_EXEC_CAV_past,
+         filename = here("results", "1_descriptives", "figures", "EXEC_CAV_past_adj.png"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_EXEC_CAV_current,
+         filename = here("results", "1_descriptives", "figures", "EXEC_CAV_current_adj.png"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_EXEC_FAV,
+         filename = here("results", "1_descriptives", "figures", "EXEC_FAV_adj.png"),
+         width = w, height = h)
+  
+  
+  ggsave(plot = plot_EXEC,
+         filename = here("results", "1_descriptives", "figures", "EXEC_all_adj.png"),
+         width = w, height = h)
+  
+}
+
+```
+
+
+
+
+
+#### with CAV/FAV
+
+##### - Correlation
+
+```{r FAV - CAV correlationa}
+CAV_FAV_correlations <- miceadds::micombine.cor(mi.res=datmids, variables = c("CAV_lifetime_s", "CAV_current_s", "CAV_past_s", "FAV_s"),
+                                       partial=c("Age_s", "Sex", "Edu_tert", "Diagnosis"))
+
+openxlsx::write.xlsx(CAV_FAV_correlations, here("results", "1_descriptives", "models", "Adjusted_correlations_mids.xlsx"), asTable = F)
+```
+
+##### - Models
+
+```{r FAV - CAV lifetime}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(FAV ~ CAV_lifetime + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(FAV_s ~ CAV_lifetime_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+FAV_CAV_lifetime <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(FAV_CAV_lifetime, here("results", "1_descriptives", "models", "FAV_CAV_lifetime.xlsx"), asTable = F)
+
+```
+
+```{r FAV - CAV past}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(FAV ~ CAV_past + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(FAV_s ~ CAV_past_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+FAV_CAV_past <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(FAV_CAV_past, here("results", "1_descriptives", "models", "FAV_CAV_past.xlsx"), asTable = F)
+
+```
+
+```{r FAV - CAV current}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(FAV ~ CAV_current + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(FAV_s ~ CAV_current_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+FAV_CAV_current <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(FAV_CAV_current, here("results", "1_descriptives", "models", "FAV_CAV_current.xlsx"), asTable = F)
+
+```
+
+##### - Table
+
+```{r Table - FAV CAV}
+
+table_FAV <- data.frame(matrix(ncol=0,nrow=1))
+table_FAV$contrast <- "FAV"
+
+table_FAV$CAV_lifetime_Estimate <- paste(round(FAV_CAV_lifetime$Pooled_lm$estimate, 2), " (", 
+                                     round(FAV_CAV_lifetime$Pooled_lm$std.error, 2), ")", sep="")[2]
+table_FAV$CAV_lifetime_Estimate_std <- paste(round(FAV_CAV_lifetime$Pooled_lm$estimate_std, 2), " (", 
+                                     round(FAV_CAV_lifetime$Pooled_lm$std.error_std, 2), ")", sep="")[2]
+table_FAV$CAV_lifetime_p <- round(FAV_CAV_lifetime$Pooled_lm$p.value_std, 3)[2]
+
+
+table_FAV$CAV_past_Estimate <- paste(round(FAV_CAV_past$Pooled_lm$estimate, 2), " (", 
+                                 round(FAV_CAV_past$Pooled_lm$std.error, 2), ")", sep="")[2]
+table_FAV$CAV_past_Estimate_std <- paste(round(FAV_CAV_past$Pooled_lm$estimate_std, 2), " (", 
+                                 round(FAV_CAV_past$Pooled_lm$std.error_std, 2), ")", sep="")[2]
+table_FAV$CAV_past_p <- round(FAV_CAV_past$Pooled_lm$p.value_std, 3)[2]
+
+
+table_FAV$CAV_current_Estimate <- paste(round(FAV_CAV_current$Pooled_lm$estimate, 2), " (", 
+                                    round(FAV_CAV_current$Pooled_lm$std.error, 2), ")", sep="")[2]
+table_FAV$CAV_current_Estimate_std <- paste(round(FAV_CAV_current$Pooled_lm$estimate_std, 2), " (", 
+                                    round(FAV_CAV_current$Pooled_lm$std.error_std, 2), ")", sep="")[2]
+table_FAV$CAV_current_p <- round(FAV_CAV_current$Pooled_lm$p.value_std, 3)[2]
+
+
+gt(table_FAV, rownames_to_stub = F) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_lifetime_p, rows = CAV_lifetime_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_past_p, rows = CAV_past_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_current_p, rows = CAV_current_p < 0.05)) %>% 
+  sub_values(values = 0.000, replacement = "<0.001") %>% 
+  gtsave(filename=here("results", "1_descriptives",  "tables", "Table_Q_FAV_CAV.docx"))
+    
+```
+
+##### - Plots
+
+```{r Plots - FAV CAV prep data}
+
+if(plot_single_plots) {
+  
+  dat_median <- dat_median %>%
+    mutate(CAV_lifetime_adj = lm(CAV_lifetime_s ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           CAV_past_adj     = lm(CAV_past_s     ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           CAV_current_adj  = lm(CAV_current_s  ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+           FAV_adj          = lm(FAV_s          ~ Age + Sex + Edu_tert + Diagnosis, data=dat_median)$resid
+    )
+  
+  # Figures
+  w = 5
+  h = 5
+  
+  (plot_FAV_CAV_lifetime <- dat_median %>% 
+      ggplot(., aes(x = FAV_adj, y = CAV_lifetime_adj)) + 
+      geom_point(alpha=0.3) + 
+      stat_smooth(method="lm", fullrange=TRUE)
+  )
+  
+  (plot_FAV_CAV_past <- dat_median %>% 
+      ggplot(., aes(x = FAV_adj, y = CAV_past_adj)) + 
+      geom_point(alpha=0.3) + 
+      stat_smooth(method="lm", fullrange=TRUE)
+  )
+  
+  (plot_FAV_CAV_current <- dat_median %>% 
+      ggplot(., aes(x = FAV_adj, y = CAV_current_adj)) + 
+      geom_point(alpha=0.3) + 
+      stat_smooth(method="lm", fullrange=TRUE)
+  )
+  
+  
+  
+  (plot_FAV <- dat_median %>% 
+      ggplot(.) + 
+      stat_smooth(aes(x = FAV_adj, y = CAV_lifetime_adj), method="lm", fullrange=TRUE, color="#5465FF", fill = "#99A3FF", se=T) +
+      stat_smooth(aes(x = FAV_adj, y = CAV_past_adj), method="lm", fullrange=TRUE, color="#788bff", fill = "#D6DCFF", se=T) +
+      stat_smooth(aes(x = FAV_adj, y = CAV_current_adj), method="lm", fullrange=TRUE, color="#9BB1FF", fill = "#EBEFFF", se=T)
+  )
+  
+  
+  
+  ggsave(plot = plot_FAV_CAV_lifetime,
+         filename = here("results", "1_descriptives", "figures", "FAV_CAV_lifetime_adj.pdf"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_FAV_CAV_past,
+         filename = here("results", "1_descriptives", "figures", "FAV_CAV_past_adj.pdf"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_FAV_CAV_current,
+         filename = here("results", "1_descriptives", "figures", "FAV_CAV_current_adj.pdf"),
+         width = w, height = h)
+  
+  
+  
+  ggsave(plot = plot_FAV_CAV_lifetime,
+         filename = here("results", "1_descriptives", "figures", "FAV_CAV_lifetime_adj.png"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_FAV_CAV_past,
+         filename = here("results", "1_descriptives", "figures", "FAV_CAV_past_adj.png"),
+         width = w, height = h)
+  
+  ggsave(plot = plot_FAV_CAV_current,
+         filename = here("results", "1_descriptives", "figures", "FAV_CAV_current_adj.png"),
+         width = w, height = h)
+  
+  
+  ggsave(plot = plot_FAV,
+         filename = here("results", "1_descriptives", "figures", "FAV_all_adj.png"),
+         width = w, height = h)
+  
+}
+
+```
+
+
+#### CAV lifetime with CAV
+
+##### - Models
+
+```{r CAV lifetime - CAV past}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_lifetime ~ CAV_past + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_lifetime_s ~ CAV_past_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_lifetime_CAV_past <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_lifetime_CAV_past, here("results", "1_descriptives", "models", "CAV_lifetime_CAV_past.xlsx"), asTable = F)
+
+```
+
+```{r CAV lifetime - CAV current}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_lifetime ~ CAV_current + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_lifetime_s ~ CAV_current_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_lifetime_CAV_current <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_lifetime_CAV_current, here("results", "1_descriptives", "models", "CAV_lifetime_CAV_current.xlsx"), asTable = F)
+
+```
+
+##### - Table
+
+```{r}
+table_CAV_lifetime <- data.frame(matrix(ncol=0,nrow=1))
+table_CAV_lifetime$contrast <- "CAV_lifetime"
+
+table_CAV_lifetime$CAV_past_Estimate <- paste(round(CAV_lifetime_CAV_past$Pooled_lm$estimate, 2), " (", 
+                                 round(CAV_lifetime_CAV_past$Pooled_lm$std.error, 2), ")", sep="")[2]
+table_CAV_lifetime$CAV_past_Estimate_std <- paste(round(CAV_lifetime_CAV_past$Pooled_lm$estimate_std, 2), " (", 
+                                 round(CAV_lifetime_CAV_past$Pooled_lm$std.error_std, 2), ")", sep="")[2]
+table_CAV_lifetime$CAV_past_p <- round(CAV_lifetime_CAV_past$Pooled_lm$p.value_std, 3)[2]
+
+
+table_CAV_lifetime$CAV_current_Estimate <- paste(round(CAV_lifetime_CAV_current$Pooled_lm$estimate, 2), " (", 
+                                    round(CAV_lifetime_CAV_current$Pooled_lm$std.error, 2), ")", sep="")[2]
+table_CAV_lifetime$CAV_current_Estimate_std <- paste(round(CAV_lifetime_CAV_current$Pooled_lm$estimate_std, 2), " (", 
+                                    round(CAV_lifetime_CAV_current$Pooled_lm$std.error_std, 2), ")", sep="")[2]
+table_CAV_lifetime$CAV_current_p <- round(CAV_lifetime_CAV_current$Pooled_lm$p.value_std, 3)[2]
+
+
+gt(table_CAV_lifetime, rownames_to_stub = F) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_past_p, rows = CAV_past_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_current_p, rows = CAV_current_p < 0.05)) %>% 
+  sub_values(values = 0.000, replacement = "<0.001") %>% 
+  gtsave(filename=here("results", "1_descriptives",  "tables", "Table_Q_CAV_lifetime.docx"))
+
+```
+
+
+
+
+#### CAV past with CAV
+
+##### - Models
+
+```{r CAV past - CAV current}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_past ~ CAV_current + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_past_s ~ CAV_current_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_past_CAV_current <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_past_CAV_current, here("results", "1_descriptives", "models", "CAV_past_CAV_current.xlsx"), asTable = F)
+
+
+```
+
+##### - Table
+
+```{r}
+table_CAV_past <- data.frame(matrix(ncol=0,nrow=1))
+table_CAV_past$contrast <- "CAV_past"
+
+
+table_CAV_past$CAV_current_Estimate <- paste(round(CAV_past_CAV_current$Pooled_lm$estimate, 2), " (", 
+                                    round(CAV_past_CAV_current$Pooled_lm$std.error, 2), ")", sep="")[2]
+table_CAV_past$CAV_current_Estimate_std <- paste(round(CAV_past_CAV_current$Pooled_lm$estimate_std, 2), " (", 
+                                    round(CAV_past_CAV_current$Pooled_lm$std.error_std, 2), ")", sep="")[2]
+table_CAV_past$CAV_current_p <- round(CAV_past_CAV_current$Pooled_lm$p.value_std, 3)[2]
+
+
+gt(table_CAV_past, rownames_to_stub = F) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_current_p, rows = CAV_current_p < 0.05)) %>% 
+  sub_values(values = 0.000, replacement = "<0.001") %>% 
+  gtsave(filename=here("results", "1_descriptives",  "tables", "Table_Q_CAV_past.docx"))
+
+
+```
+
+
+
+
+
+
+
+#### with MRI - ADsign
+
+Note this will be performed only in the subset of the sample that has MRI data available
+
+##### - Models
+
+```{r CAV_lifetime -  MRI ADsign}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_lifetime ~ ADsign_thick + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_lifetime_s ~ ADsign_thick_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_lifetime_MRI <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_lifetime_MRI, here("results", "1_descriptives", "models", "CAV_lifetime_MRI.xlsx"), asTable = F)
+
+```
+
+```{r CAV_past - MRI ADsign}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_past ~ ADsign_thick + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_past_s ~ ADsign_thick_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_past_MRI <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_past_MRI, here("results", "1_descriptives", "models", "CAV_past_MRI.xlsx"), asTable = F)
+
+```
+
+```{r CAV_current - MRI ADsign}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_current ~ ADsign_thick + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_current_s ~ ADsign_thick_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_current_MRI <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_current_MRI, here("results", "1_descriptives", "models", "CAV_current_MRI.xlsx"), asTable = F)
+
+```
+
+```{r FAV - MRI ADsign}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(FAV ~ ADsign_thick + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(FAV_s ~ ADsign_thick_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+FAV_MRI <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(FAV_MRI, here("results", "1_descriptives", "models", "FAV_MRI.xlsx"), asTable = F)
+
+```
+
+##### - Table
+
+```{r}
+table_ADsign <- data.frame(matrix(ncol=0,nrow=1))
+table_ADsign$contrast <- "ADsign_thick"
+
+
+table_ADsign$CAV_lifetime_Estimate <- paste(round(CAV_lifetime_MRI$Pooled_lm$estimate,2), " (", 
+                                     round(CAV_lifetime_MRI$Pooled_lm$std.error,2), ")", sep="")[2]
+table_ADsign$CAV_lifetime_Estimate_std <- paste(round(CAV_lifetime_MRI$Pooled_lm$estimate_std,2), " (", 
+                                     round(CAV_lifetime_MRI$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_ADsign$CAV_lifetime_p <- round(CAV_lifetime_MRI$Pooled_lm$p.value_std, 3)[2]
+
+
+table_ADsign$CAV_past_Estimate <- paste(round(CAV_past_MRI$Pooled_lm$estimate,2), " (", 
+                                 round(CAV_past_MRI$Pooled_lm$std.error,2), ")", sep="")[2]
+table_ADsign$CAV_past_Estimate_std <- paste(round(CAV_past_MRI$Pooled_lm$estimate_std,2), " (", 
+                                 round(CAV_past_MRI$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_ADsign$CAV_past_p <- round(CAV_past_MRI$Pooled_lm$p.value_std, 3)[2]
+
+
+table_ADsign$CAV_current_Estimate <- paste(round(CAV_current_MRI$Pooled_lm$estimate,2), " (",
+                                    round(CAV_current_MRI$Pooled_lm$std.error,2), ")", sep="")[2]
+table_ADsign$CAV_current_Estimate_std <- paste(round(CAV_current_MRI$Pooled_lm$estimate_std,2), " (",
+                                    round(CAV_current_MRI$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_ADsign$CAV_current_p <- round(CAV_current_MRI$Pooled_lm$p.value_std, 3)[2]
+
+
+table_ADsign$FAV_Estimate <- paste(round(FAV_MRI$Pooled_lm$estimate,2), " (", 
+                            round(FAV_MRI$Pooled_lm$std.error,2), ")", sep="")[2]
+table_ADsign$FAV_Estimate_std <- paste(round(FAV_MRI$Pooled_lm$estimate_std,2), " (", 
+                            round(FAV_MRI$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_ADsign$FAV_p <- round(FAV_MRI$Pooled_lm$p.value_std, 3)[2]
+
+
+gt(table_ADsign, rownames_to_stub = F) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_lifetime_p, rows = CAV_lifetime_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_past_p, rows = CAV_past_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_current_p, rows = CAV_current_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = FAV_p, rows = FAV_p < 0.05)) %>% 
+  sub_values(values = 0.000, replacement = "<0.001") %>% 
+  gtsave(filename=here("results", "1_descriptives", "tables", "Table_Q_ADsign.docx"))
+    
+```
+
+
+
+#### with MRI - WB
+
+Note this will be performed only in the subset of the sample that has MRI data available
+
+##### - Models
+
+```{r CAV_lifetime -  MRI WB}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_lifetime ~ WB_thick + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_lifetime_s ~ WB_thick_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_lifetime_MRI_wb <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_lifetime_MRI_wb, here("results", "1_descriptives", "models", "CAV_lifetime_MRI_wb.xlsx"), asTable = F)
+
+```
+
+```{r CAV_past - MRI WB}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_past ~ WB_thick + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_past_s ~ WB_thick_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_past_MRI_wb <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_past_MRI_wb, here("results", "1_descriptives", "models", "CAV_past_MRI_wb.xlsx"), asTable = F)
+
+```
+
+```{r CAV_current - MRI WB}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(CAV_current ~ WB_thick + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(CAV_current_s ~ WB_thick_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+CAV_current_MRI_wb <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(CAV_current_MRI_wb, here("results", "1_descriptives", "models", "CAV_current_MRI_wb.xlsx"), asTable = F)
+
+```
+
+```{r FAV - MRI WB}
+
+# fit model and pool estimates
+fit <- with(data=datmids, exp=lm(FAV ~ WB_thick + Age + Sex + Edu_tert + Diagnosis))
+fit_summary <- summary(pool(fit))
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids, exp=lm(FAV_s ~ WB_thick_s + Age_s + Sex + Edu_tert + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+colnames(fit_summary_s) <- paste(colnames(fit_summary_s), "std", sep="_")
+
+# Save results
+fit_summary <- cbind(fit_summary, fit_summary_s)
+
+FAV_MRI_wb <- list("Pooled_lm" = fit_summary)
+
+openxlsx::write.xlsx(FAV_MRI_wb, here("results", "1_descriptives", "models", "FAV_MRI_wb.xlsx"), asTable = F)
+
+```
+
+##### - Table
+
+```{r}
+table_WB <- data.frame(matrix(ncol=0,nrow=1))
+table_WB$contrast <- "WB_thick"
+
+
+table_WB$CAV_lifetime_Estimate <- paste(round(CAV_lifetime_MRI_wb$Pooled_lm$estimate,2), " (", 
+                                     round(CAV_lifetime_MRI_wb$Pooled_lm$std.error,2), ")", sep="")[2]
+table_WB$CAV_lifetime_Estimate_std <- paste(round(CAV_lifetime_MRI_wb$Pooled_lm$estimate_std,2), " (", 
+                                     round(CAV_lifetime_MRI_wb$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_WB$CAV_lifetime_p <- round(CAV_lifetime_MRI_wb$Pooled_lm$p.value_std, 3)[2]
+
+
+table_WB$CAV_past_Estimate <- paste(round(CAV_past_MRI_wb$Pooled_lm$estimate,2), " (", 
+                                 round(CAV_past_MRI_wb$Pooled_lm$std.error,2), ")", sep="")[2]
+table_WB$CAV_past_Estimate_std <- paste(round(CAV_past_MRI_wb$Pooled_lm$estimate_std,2), " (", 
+                                 round(CAV_past_MRI_wb$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_WB$CAV_past_p <- round(CAV_past_MRI_wb$Pooled_lm$p.value_std, 3)[2]
+
+
+table_WB$CAV_current_Estimate <- paste(round(CAV_current_MRI_wb$Pooled_lm$estimate,2), " (",
+                                    round(CAV_current_MRI_wb$Pooled_lm$std.error,2), ")", sep="")[2]
+table_WB$CAV_current_Estimate_std <- paste(round(CAV_current_MRI_wb$Pooled_lm$estimate_std,2), " (",
+                                    round(CAV_current_MRI_wb$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_WB$CAV_current_p <- round(CAV_current_MRI_wb$Pooled_lm$p.value_std, 3)[2]
+
+
+table_WB$FAV_Estimate <- paste(round(FAV_MRI_wb$Pooled_lm$estimate,2), " (", 
+                            round(FAV_MRI_wb$Pooled_lm$std.error,2), ")", sep="")[2]
+table_WB$FAV_Estimate_std <- paste(round(FAV_MRI_wb$Pooled_lm$estimate_std,2), " (", 
+                            round(FAV_MRI_wb$Pooled_lm$std.error_std,2), ")", sep="")[2]
+table_WB$FAV_p <- round(FAV_MRI_wb$Pooled_lm$p.value_std, 3)[2]
+
+
+gt(table_WB, rownames_to_stub = F) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_lifetime_p, rows = CAV_lifetime_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_past_p, rows = CAV_past_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_current_p, rows = CAV_current_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = FAV_p, rows = FAV_p < 0.05)) %>% 
+  sub_values(values = 0.000, replacement = "<0.001") %>% 
+  gtsave(filename=here("results", "1_descriptives", "tables", "Table_Q_WB.docx"))
+    
+```
+
+
+
+
+## Save workspace
+
+```{r}
+
+save.image(file = here("results", "1_descriptives", "01_03_02_P1_Stats_mids.RData" ))
+
+```
+
+
+
+## 2) Figures
+
+## Load worksapce
+
+```{r}
+load(here("results", "1_descriptives", "01_03_02_P1_Stats_mids.RData"))
+
+```
+
+
+## Make table
+
+```{r}
+
+table_all_vars <- rbind(table_AGE,
+                        table_SEX,
+                        table_EDU,
+                        table_APOE,
+                        table_MMSE,
+                        table_MEM,
+                        table_EXEC,
+                        table_ADsign,
+                        table_WB
+                        )
+
+
+gt(table_all_vars, rownames_to_stub = F) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_lifetime_p, rows = CAV_lifetime_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_past_p, rows = CAV_past_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_current_p, rows = CAV_current_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = FAV_p, rows = FAV_p < 0.05)) %>% 
+  sub_values(values = 0.000, replacement = "<0.001") %>% 
+  gtsave(filename=here("results", "1_descriptives", "tables", "Table_Q_ALL_VARS.docx"))
+
+
+```
+
+
+```{r Figs - data prep}
+
+table_DIAG <- table_DIAG %>%
+  separate_wider_delim(contrast, delim = " - ", names = c("group1", "group2")) %>%
+  mutate(group1 = gsub("[()]", "", group1),
+         group2 = gsub("[()]", "", group2))
+
+CAV_lifetime_table <- table_DIAG %>% 
+  filter(CAV_lifetime_p <0.05) %>% 
+  mutate(CAV_lifetime_p = get_p_stars(CAV_lifetime_p))
+
+FAV_current_table <- table_DIAG %>% 
+  filter(FAV_p <0.05) %>% 
+  mutate(FAV_p = get_p_stars(FAV_p))
+
+```
+
+
+
+## Figure 1 Manuscript
+
+NOTE> run first the data prep chunk above
+
+"SCD" = "#582851",
+"MCI" = "#7E3873",
+"AD"  = "#B355A5",
+
+```{r Fig 1 - raw scores}
+
+## Plot with raw scores 
+
+# CAV_lifetime ~ Diag
+(plot_DIAG_CAV_lifetime <- dat_median %>% 
+   ggplot(., aes(x = Diagnosis, y = CAV_lifetime, fill=Diagnosis)) + 
+   ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+   geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+   gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+   ggeasy::easy_labs() +
+   labs(y = "CAQ lifetime score",
+        x = "",
+        title = "Cognitive activity") + 
+   scale_fill_manual(values=palette) +
+   scale_x_discrete(guide = guide_axis(angle = 25)) + 
+   #ylim(25, 130) +
+   theme(legend.position="none",
+         plot.title = element_text(size = 16),
+         axis.title = element_text(size = 16),
+         axis.text = element_text(size = 14)
+   ) +
+   ggpubr::geom_bracket(
+     aes(xmin = group1, xmax = group2, label = CAV_lifetime_p),
+     data = CAV_lifetime_table, y.position = c(5.5 ,5.2), inherit.aes = F, tip.length = 0.01, vjust=0.5)
+)
+
+
+# FAV_lifetime ~ Diag
+(plot_DIAG_FAV <- dat_median %>% 
+    ggplot(., aes(x = Diagnosis, y = FAV, fill=Diagnosis)) + 
+    ggdist::stat_halfeye(adjust = .5, width = .5, .width = 0.1, justification = -.4, point_colour = NA) + 
+    geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+    gghalves::geom_half_point(size=0.8, side="l", range_scale = .3, alpha=.2) +
+    ggeasy::easy_labs() +
+    labs(title = "Physical activity",
+         x="") + 
+    scale_fill_manual(values=palette) +
+    scale_x_discrete(guide = guide_axis(angle = 25)) +
+    ylim(0, 680) +
+   theme(legend.position="none",
+         plot.title = element_text(size = 16),
+         axis.title = element_text(size = 16),
+         axis.text = element_text(size = 14))
+  #   ggpubr::geom_bracket(
+  #     aes(xmin = group2, xmax = group1, label = FAV_p, size=0.1),
+  #     data = FAV_table, y.position = c(3.3, 3.6, 3.9, 4.2, 4.5, 4.8, 3.2, 5.4, 5.7, 6, 6.3, 6.6, 3.3, 3.3), 
+  #     inherit.aes = F, tip.length = 0.01)
+)
+
+
+# # CAV_lifetime ~ FAV
+# # Total sample
+# (plot_FAV_CAV_lifetime <- dat_median %>% 
+#     ggplot(., aes(x = FAV, y = CAV_lifetime)) + 
+#     geom_point(alpha=0.1, color="black") + 
+#     stat_smooth(method="lm", fullrange=TRUE, color="black") + 
+#     ggpubr::stat_cor(method = "pearson", label.x = 5, label.y = 125, size = 4) + 
+#     ggeasy::easy_labs() +
+#     ylim(25, 130) +
+#     labs(y = "CAQ lifetime score",
+#         title = "Total sample")
+# )
+# 
+# 
+# # SCD
+# (plot_FAV_CAV_lifetime_SCD <- dat_median %>% 
+#     filter(Diagnosis == "SCD") %>% 
+#     ggplot(., aes(x = FAV, y = CAV_lifetime)) + 
+#     geom_point(alpha=0.2, color="#582851") + 
+#     stat_smooth(method="lm", fullrange=TRUE, color="#582851", fill = "#c784bd") + 
+#     ggpubr::stat_cor(method = "pearson", label.x = 5, label.y = 125, size = 4) + 
+#     ggeasy::easy_labs() +
+#     ylim(25, 130) +
+#     labs(y = "CAQ lifetime score",
+#          title = "SCD")
+# )
+# 
+#
+# # MCI
+# (plot_FAV_CAV_lifetime_MCI <- dat_median %>% 
+#     filter(Diagnosis == "MCI") %>% 
+#     ggplot(., aes(x = FAV, y = CAV_lifetime)) + 
+#     geom_point(alpha=0.2, color="#7E3873") + 
+#     stat_smooth(method="lm", fullrange=TRUE, color="#7E3873", fill = "#d8a7d0") + 
+#     ggpubr::stat_cor(method = "pearson", label.x = 5, label.y = 125, size = 4) + 
+#     ggeasy::easy_labs() +
+#     ylim(25, 130) +
+#     labs(y = "CAQ lifetime score",
+#         title = "MCI")
+# )
+# 
+# # AD
+# (plot_FAV_CAV_lifetime_AD <- dat_median %>% 
+#     filter(Diagnosis == "AD") %>% 
+#     ggplot(., aes(x = FAV, y = CAV_lifetime)) + 
+#     geom_point(alpha = 0.2, color = "#B355A5") + 
+#     stat_smooth(method ="lm", fullrange = TRUE, color = "#B355A5", fill = "#e7cae3") + 
+#     ggpubr::stat_cor(method = "pearson", label.x = 5, label.y = 125, size = 4) + 
+#     ggeasy::easy_labs() +
+#     ylim(25, 130) +
+#     labs(y = "CAQ lifetime score",
+#          title = "AD")
+# )
+
+
+top_row <- cowplot::plot_grid(plot_DIAG_CAV_lifetime, 
+                              plot_DIAG_FAV, 
+                              nrow = 1, labels = c('A', 'B'))
+
+
+
+# bottom_row <- cowplot::plot_grid(plot_FAV_CAV_lifetime, 
+#                                  plot_FAV_CAV_lifetime_SCD + theme(axis.title.y = element_blank()), 
+#                                  plot_FAV_CAV_lifetime_MCI + theme(axis.title.y = element_blank()), 
+#                                  plot_FAV_CAV_lifetime_AD + theme(axis.title.y = element_blank()), 
+#                                  nrow = 1, labels = c('C', '', '', ''), align = "v")
+
+# (figure1 <- cowplot::plot_grid(top_row, bottom_row,
+#                               nrow=2, align="h", rel_heights = c(1, .8))
+# )
+
+tiff(here("results", "1_descriptives", "Figure1_manuscript_rev.tiff"), width = 300, height = 120,
+      units = 'mm', res = 400)
+top_row
+dev.off()
+
+
+pdf(here("results", "1_descriptives", "Figure1_manuscript_rev.pdf"), width = 10, height = 7)
+top_row
+dev.off()
+
+```
+
+
+
+## Figure 2 Manuscript 
+
+NOTE> run first the data prep chunk above
+
+sex: #ba744f, #E6CCBE 
+
+edu: #A07178, #936269, #7A5258 (darkest)
+
+cog:  #876E83, #876e83, #776274
+
+mri: #c8cc92, #B9BE74, #ABB159
+
+
+```{r Fig 2 - sex}
+
+# SEX figures
+dat_median <- dat_median %>%
+  mutate(CAV_lifetime_adj = lm(CAV_lifetime_s ~ Age + Edu_tert + Diagnosis, data=dat_median)$resid,
+         FAV_adj          = lm(FAV_s          ~ Age + Edu_tert + Diagnosis, data=dat_median)$resid)
+
+table_SEX_plot <- table_SEX %>%
+  separate_wider_delim(contrast, delim = " - ", names = c("group1", "group2")) %>%
+  mutate(group1 = gsub("[()]", "", group1),
+         group2 = gsub("[()]", "", group2))
+
+CAV_lifetime_table <- table_SEX_plot %>% 
+  filter(CAV_lifetime_p <0.05) %>% 
+  mutate(CAV_lifetime_p = get_p_stars(CAV_lifetime_p))
+
+FAV_table <- table_SEX_plot %>% 
+  filter(FAV_p <0.05) %>% 
+  mutate(FAV_p = get_p_stars(FAV_p))
+
+colors_sex = c("Male" = "#ba744f", "Female" = "#E6CCBE")
+
+
+(plot_SEX_CAV_lifetime <- dat_median %>% 
+    ggplot(., aes(x = Sex, y = CAV_lifetime_adj, fill=Sex)) + 
+    ggdist::stat_halfeye(adjust = .5, width = .3, .width = 0.1, justification = -.5, point_colour = NA) + 
+    geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+    ggeasy::easy_labs() +
+    labs(y = "CAQ lifetime score (covariate adjusted)",
+         x = "",
+         title = "Sex") +
+    scale_fill_manual(values=colors_sex) +   
+    # ylim(-3, 4.5) +
+    theme(legend.position="none",
+          plot.title = element_text(size = 14),
+          axis.title = element_text(size = 14),
+          axis.text = element_text(size = 14)) +
+    ggpubr::geom_bracket(
+      aes(xmin = group1, xmax = group2, label = CAV_lifetime_p),
+      data = CAV_lifetime_table, y.position = c(3.2), inherit.aes = F, tip.length = 0.01, vjust=0.5)
+)
+
+(plot_SEX_FAV <- dat_median %>% 
+    ggplot(., aes(x = Sex, y = FAV_adj, fill=Sex)) + 
+    ggdist::stat_halfeye(adjust = .5, width = .3, .width = 0.1, justification = -.5, point_colour = NA) + 
+    geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+    ggeasy::easy_labs() +
+    labs(y = "PASE score (covariate adjusted)",
+         x = "",
+         title = "Sex") +
+    scale_fill_manual(values=colors_sex) +  
+    # ylim(-3, 4.5) +
+    theme(legend.position="none",
+          plot.title = element_text(size = 14),
+          axis.title = element_text(size = 14),
+          axis.text = element_text(size = 14)) +
+    ggpubr::geom_bracket(
+      aes(xmin = group1, xmax = group2, label = FAV_p),
+      data = FAV_table, y.position = c(6.3), inherit.aes = F, tip.length = 0.01, vjust=0.5)
+)
+
+```
+
+```{r Fig 2 - edu}
+
+# SEX figures
+dat_median <- dat_median %>%
+  mutate(CAV_lifetime_adj = lm(CAV_lifetime_s ~ Age + Sex + Diagnosis, data=dat_median)$resid,
+         FAV_adj          = lm(FAV_s          ~ Age + Sex + Diagnosis, data=dat_median)$resid)
+
+table_EDU_plot <- table_EDU %>%
+  separate_wider_delim(contrast, delim = " - ", names = c("group1", "group2")) %>%
+  mutate(group1 = gsub("[()]", "", group1),
+         group2 = gsub("[()]", "", group2))
+
+CAV_lifetime_table <- table_EDU_plot %>%
+  filter(CAV_lifetime_p <0.05) %>%
+  mutate(CAV_lifetime_p = get_p_stars(CAV_lifetime_p))
+
+FAV_table <- table_EDU_plot %>%
+  filter(FAV_p <0.05) %>%
+  mutate(FAV_p = get_p_stars(FAV_p))
+
+colors_edu = c("Low" = "#7A5258", "Medium" = "#AD858B", "High" = "#D6C2C5")
+
+
+(plot_EDU_CAV_lifetime <- dat_median %>% 
+    ggplot(., aes(x = Edu_tert, y = CAV_lifetime_adj, fill=Edu_tert)) + 
+    ggdist::stat_halfeye(adjust = .5, width = .3, .width = 0.1, justification = -.5, point_colour = NA) + 
+    geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+    ggeasy::easy_labs() +
+    labs(y = "CAQ lifetime score (covariate adjusted)",
+         x = "",
+         title = "Education") +
+    scale_fill_manual(values=colors_edu) +   
+    # ylim(-3, 4.5) +
+    theme(legend.position="none",
+          plot.title = element_text(size = 14),
+         axis.title = element_text(size = 14),
+         axis.text = element_text(size = 14)) +
+    ggpubr::geom_bracket(
+      aes(xmin = group1, xmax = group2, label = CAV_lifetime_p),
+      data = CAV_lifetime_table, y.position = c(3, 3.5, 3.2), inherit.aes = F, tip.length = 0.01, vjust=0.5)
+)
+
+
+
+(plot_EDU_FAV <- dat_median %>% 
+    ggplot(., aes(x = Edu_tert, y = FAV_adj, fill=Edu_tert)) + 
+    ggdist::stat_halfeye(adjust = .5, width = .3, .width = 0.1, justification = -.5, point_colour = NA) + 
+    geom_boxplot(width = .2, outlier.shape = NA, alpha=0.7) +
+    ggeasy::easy_labs() +
+    labs(y = "PASE score (covariate adjusted)",
+         x = "",
+         title = "Education") +
+    scale_fill_manual(values=colors_edu) +   
+    # ylim(-3, 4.5) +
+    theme(legend.position="none",
+          plot.title = element_text(size = 14),
+         axis.title = element_text(size = 14),
+         axis.text = element_text(size = 14)) +
+    ggpubr::geom_bracket(
+      aes(xmin = group1, xmax = group2, label = FAV_p),
+      data = FAV_table, y.position = c(5.5, 6.1), inherit.aes = F, tip.length = 0.01, vjust=0.5)
+)
+
+```
+
+```{r Models with MMSE tert}
+# First, necessary to run the models with the MMSE tert to be able to plot p-stars on the figure
+
+# Tertile MMSE inside datimp (per imputed dataset) and then convert back to mids
+datimp_tert <- complete(datmids, action="long", include = TRUE)
+
+datimp_tert <- datimp_tert %>%
+  group_by(.imp) %>%
+  mutate(MMSE_tert = factor(ntile(MMSE,3), levels=c("1", "2", "3"), labels=c("Low","Medium","High"))) %>%
+  ungroup()
+
+datmids_tert <- mice::as.mids(datimp_tert)
+
+
+## CAV_lifetime ~ MMSE_tert
+# FIT (adjusted) MODEL with MMSE TERTILES to grab the start from here for the plot
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids_tert, exp=lm(CAV_lifetime_s ~ MMSE_tert + Edu_tert + Sex + Age_s + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "MMSE_tert"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "MMSE_tert"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+CAV_lifetime_MMSE_tert <- list("Pooled_lm" = fit_summary_s,
+                               "Pairwise" = pairwise_summary_s)
+
+openxlsx::write.xlsx(CAV_lifetime_MMSE_tert, here("results", "1_descriptives", "models", "CAV_lifetime_MMSE_tert.xlsx"), asTable = F)
+
+
+## FAV ~ MMSE_tert
+# model with z-scored outcome variable
+fit_s <- with(data=datmids_tert, exp=lm(FAV_s ~ MMSE_tert + Edu_tert + Sex + Age_s + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "MMSE_tert"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "MMSE_tert"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+# Save results
+FAV_MMSE_tert <- list("Pooled_lm" = fit_summary_s,
+                      "Pairwise" = pairwise_summary_s)
+
+openxlsx::write.xlsx(FAV_MMSE_tert, here("results", "1_descriptives", "models", "FAV_MMSE_tert.xlsx"), asTable = F)
+
+
+
+## MAKE THE TABLE
+
+table_MMSE_tert <- data.frame(matrix(ncol=0,nrow=3))
+table_MMSE_tert$contrast <- CAV_lifetime_MMSE_tert$Pairwise[, "contrast_std"]
+
+table_MMSE_tert$CAV_lifetime_Estimate_std <- paste(round(CAV_lifetime_MMSE_tert$Pairwise$estimate_std,2), " (", 
+                                                   round(CAV_lifetime_MMSE_tert$Pairwise$SE_std,2), ")", sep="")
+table_MMSE_tert$CAV_lifetime_p <- round(CAV_lifetime_MMSE_tert$Pairwise$p.value_std, 3)
+
+
+table_MMSE_tert$FAV_Estimate_std <- paste(round(FAV_MMSE_tert$Pairwise$estimate_std,2), " (", 
+                                          round(FAV_MMSE_tert$Pairwise$SE_std,2), ")", sep="")
+table_MMSE_tert$FAV_p <- round(FAV_MMSE_tert$Pairwise$p.value_std, 3)
+
+
+gt(table_MMSE_tert, rownames_to_stub = F) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_lifetime_p, rows = CAV_lifetime_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = FAV_p, rows = FAV_p < 0.05)) %>% 
+  sub_values(values = 0.000, replacement = "<0.001") %>% 
+      gtsave(filename=here("results", "1_descriptives", "tables", "Table_Q_MMSE_tert.docx"))
+
+
+
+```
+
+
+```{r Fig 2 - mmse tert}
+
+# MMSE tert figures
+dat_median <- dat_median %>%
+  mutate(MMSE_adj         = lm(MMSE_s         ~ Age_s + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+         CAV_lifetime_adj = lm(CAV_lifetime_s ~ Age_s + Sex + Edu_tert + Diagnosis, data=dat_median)$resid,
+         FAV_adj          = lm(FAV_s          ~ Age_s + Sex + Edu_tert + Diagnosis, data=dat_median)$resid) %>% 
+  mutate(MMSE_adj_tert = factor(ntile(MMSE_adj,3), levels=c("1", "2", "3"), labels=c("Low",
+                                                                                     "Medium",
+                                                                                     "High")))
+
+table_MMSE_tert <- table_MMSE_tert %>%
+  separate_wider_delim(contrast, delim = " - ", names = c("group1", "group2")) %>%
+  mutate(group1 = gsub("[()]", "", group1),
+         group2 = gsub("[()]", "", group2))
+
+CAV_lifetime_table <- table_MMSE_tert %>%
+  filter(CAV_lifetime_p <0.05) %>%
+  mutate(CAV_lifetime_p = get_p_stars(CAV_lifetime_p))
+
+FAV_table <- table_MMSE_tert %>%
+  filter(FAV_p <0.05) %>%
+  mutate(FAV_p = get_p_stars(FAV_p))
+
+colors_cog = c("Low" = "#433741", "Medium" = "#876e83", "High" = "#C8BCC6")
+
+
+
+(plot_COG_CAV_lifetime <- dat_median %>% 
+    ggplot(., aes(x = MMSE_adj_tert, y = CAV_lifetime_adj, fill=MMSE_adj_tert)) + 
+    ggdist::stat_halfeye(adjust = .5, width = .3, .width = 0.1, justification = -.4, point_colour = NA) + 
+    geom_boxplot(width = .15, outlier.shape = NA, alpha=0.7) +
+    #gghalves::geom_half_point(size=0.8, side="l", range_scale = .4, alpha=.2) +
+    ggeasy::easy_labs() +
+    labs(y = "CAQ lifetime score (covariate adjusted)",
+         x = "",
+         title = "Cognition (MMSE)") +
+    scale_fill_manual(values=colors_cog) +   
+    # ylim(-3, 4.5) +
+    theme(legend.position="none",
+          plot.title = element_text(size = 14),
+         axis.title = element_text(size = 14),
+         axis.text = element_text(size = 14)) +
+    ggpubr::geom_bracket(
+      aes(xmin = group1, xmax = group2, label = CAV_lifetime_p),
+      data = CAV_lifetime_table, y.position = c(3, 3.5, 3.2), inherit.aes = F, tip.length = 0.01, vjust=0.5)
+)
+
+
+(plot_COG_FAV <- dat_median %>% 
+    ggplot(., aes(x = MMSE_adj_tert, y =FAV_adj, fill=MMSE_adj_tert)) + 
+    ggdist::stat_halfeye(adjust = .5, width = .3, .width = 0.1, justification = -.4, point_colour = NA) + 
+    geom_boxplot(width = .15, outlier.shape = NA, alpha=0.7) +
+    #gghalves::geom_half_point(size=0.8, side="l", range_scale = .4, alpha=.2) +
+    ggeasy::easy_labs() +
+    labs(y = "PASE score (covariate adjusted)",
+         x = "",
+         title = "Cognition (MMSE)") +
+    scale_fill_manual(values=colors_cog) +   
+    # ylim(-3, 4.5) +
+    theme(legend.position="none",
+          plot.title = element_text(size = 14),
+         axis.title = element_text(size = 14),
+         axis.text = element_text(size = 14)) +
+    ggpubr::geom_bracket(
+      aes(xmin = group1, xmax = group2, label = FAV_p),
+      data = FAV_table, y.position = c(5.6, 6.1), inherit.aes = F, tip.length = 0.01, vjust=0.5)
+)
+
+
+
+```
+
+```{r Models with WB thick tert}
+# First, necessary to run the models with the MMSE tert to be able to plot p-stars on the figure
+
+# Tertile WB_thick inside datimp (per imputed dataset) and then convert back to mids
+datimp_tert <- complete(datmids, action="long", include = TRUE)
+
+datimp_tert <- datimp_tert %>%
+  group_by(.imp) %>%
+  mutate(WB_thick_tert = factor(ntile(WB_thick,3), levels=c("1", "2", "3"), 
+                                labels=c("Low","Medium","High"))) %>%
+  ungroup()
+
+datmids_tert <- mice::as.mids(datimp_tert)
+
+
+## CAV_lifetime ~ WB_thick_tert
+# FIT (adjusted) MODEL with WB_thick_tert  to grab the start from here for the plot
+
+# model with z-scored outcome variable
+fit_s <- with(data=datmids_tert, exp=lm(CAV_lifetime_s ~ WB_thick_tert + Edu_tert + Sex + Age_s + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "WB_thick_tert"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "WB_thick_tert"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+CAV_lifetime_WB_tert <- list("Pooled_lm" = fit_summary_s,
+                               "Pairwise" = pairwise_summary_s)
+
+openxlsx::write.xlsx(CAV_lifetime_WB_tert, here("results", "1_descriptives", "models", "CAV_lifetime_WB_tert.xlsx"), asTable = F)
+
+
+## FAV ~ WB_thick_tert
+# model with z-scored outcome variable
+fit_s <- with(data=datmids_tert, exp=lm(FAV_s ~ WB_thick_tert + Edu_tert + Sex + Age_s + Diagnosis))
+fit_summary_s <- summary(pool(fit_s))
+
+pairwise_summary_s <- data.frame(pairs(emmeans::emmeans(fit_s, "WB_thick_tert"), adjust="none"))
+pairwise_summary_s$p.value.Tuckey <- data.frame(pairs(emmeans::emmeans(fit_s, "WB_thick_tert"), adjust="Tukey"))$p.value
+
+colnames(fit_summary_s)      <- paste(colnames(fit_summary_s), "std", sep="_")
+colnames(pairwise_summary_s) <- paste(colnames(pairwise_summary_s), "std", sep="_")
+
+
+# Save results
+FAV_WB_tert <- list("Pooled_lm" = fit_summary_s,
+                      "Pairwise" = pairwise_summary_s)
+
+openxlsx::write.xlsx(FAV_WB_tert, here("results", "1_descriptives", "models", "FAV_WB_tert.xlsx"), asTable = F)
+
+
+
+## MAKE THE TABLE
+
+table_WB_tert <- data.frame(matrix(ncol=0,nrow=3))
+table_WB_tert$contrast <- CAV_lifetime_WB_tert$Pairwise[,"contrast_std"]
+
+table_WB_tert$CAV_lifetime_Estimate_std <- paste(round(CAV_lifetime_WB_tert$Pairwise$estimate_std,2), " (", 
+                                                   round(CAV_lifetime_WB_tert$Pairwise$SE_std,2), ")", sep="")
+table_WB_tert$CAV_lifetime_p <- round(CAV_lifetime_WB_tert$Pairwise$p.value_std, 3)
+
+
+table_WB_tert$FAV_Estimate_std <- paste(round(FAV_WB_tert$Pairwise$estimate_std,2), " (", 
+                                          round(FAV_WB_tert$Pairwise$SE_std,2), ")", sep="")
+table_WB_tert$FAV_p <- round(FAV_WB_tert$Pairwise$p.value_std, 3)
+
+
+
+gt(table_WB_tert, rownames_to_stub = F) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = CAV_lifetime_p, rows = CAV_lifetime_p < 0.05)) %>% 
+  tab_style(style = list(cell_text(weight = "bold"), cell_fill(color = "yellow")),
+            locations = cells_body(columns = FAV_p, rows = FAV_p < 0.05)) %>% 
+  sub_values(values = 0.000, replacement = "<0.001") %>% 
+      gtsave(filename=here("results", "1_descriptives", "tables", "Table_Q_WB_tert.docx"))
+
+```
+
+
+```{r Fig 2 - WB thick tert}
+
+# WB thick tert figures
+dat_median_wb <- dat_median %>%
+  drop_na(WB_thick_s)
+  
+dat_median_wb <- dat_median_wb %>%
+  mutate(WB_thick_adj      = lm(WB_thick_s     ~ Age_s + Sex + Edu_tert + Diagnosis, data=dat_median_wb)$resid,
+         CAV_lifetime_adj  = lm(CAV_lifetime_s ~ Age_s + Sex + Edu_tert + Diagnosis, data=dat_median_wb)$resid,
+         FAV_adj           = lm(FAV_s          ~ Age_s + Sex + Edu_tert + Diagnosis, data=dat_median_wb)$resid) %>% 
+  mutate(WB_thick_adj_tert = factor(ntile(WB_thick_adj,3), levels=c("1", "2", "3"), 
+                                    labels=c("Low","Medium","High")))
+
+table_WB_tert <- table_WB_tert %>%
+  separate_wider_delim(contrast, delim = " - ", names = c("group1", "group2")) %>%
+  mutate(group1 = gsub("[()]", "", group1),
+         group2 = gsub("[()]", "", group2))
+
+CAV_lifetime_table <- table_WB_tert %>%
+  filter(CAV_lifetime_p <0.05) %>%
+  mutate(CAV_lifetime_p = get_p_stars(CAV_lifetime_p))
+
+FAV_table <- table_WB_tert %>%
+  filter(FAV_p <0.05) %>%
+  mutate(FAV_p = get_p_stars(FAV_p))
+
+
+colors_mri = c("Low" = "#6B6E35", 
+               "Medium" = "#B9BE74", 
+               "High" = "#DCDEBA")
+
+(plot_MRI_CAV_lifetime <- dat_median_wb %>% 
+    ggplot(., aes(x = WB_thick_adj_tert, y = CAV_lifetime_adj, fill=WB_thick_adj_tert)) + 
+    ggdist::stat_halfeye(adjust = .5, width = .3, .width = 0.1, justification = -.4, point_colour = NA) + 
+    geom_boxplot(width = .15, outlier.shape = NA, alpha=0.7) +
+    #gghalves::geom_half_point(size=0.8, side="l", range_scale = .4, alpha=.2) +
+    ggeasy::easy_labs() +
+    labs(y = "CAQ lifetime score (covariate adjusted)",
+         x = "",
+         title = "Whole-brain atrophy") +
+    scale_fill_manual(values=colors_mri) +   
+    # ylim(-3, 4.5) +
+    theme(legend.position="none",
+          plot.title = element_text(size = 14),
+          axis.title = element_text(size = 14),
+          axis.text = element_text(size = 14))
+    # ggpubr::geom_bracket(
+    #   aes(xmin = group1, xmax = group2, label = CAV_lifetime_p),
+    #   data = CAV_lifetime_table, y.position = c(3, 3.5, 3.2), inherit.aes = F, tip.length = 0.01)
+)
+
+
+(plot_MRI_FAV <- dat_median_wb %>% 
+    ggplot(., aes(x = WB_thick_adj_tert, y =FAV_adj, fill=WB_thick_adj_tert)) + 
+    ggdist::stat_halfeye(adjust = .5, width = .3, .width = 0.1, justification = -.4, point_colour = NA) + 
+    geom_boxplot(width = .15, outlier.shape = NA, alpha=0.7) +
+    #gghalves::geom_half_point(size=0.8, side="l", range_scale = .4, alpha=.2) +
+    ggeasy::easy_labs() +
+    labs(y = "PASE score (covariate adjusted)",
+         x = "",
+         title = "Whole-brain atrophy") +
+    scale_fill_manual(values=colors_mri) +   
+    # ylim(-3, 4.5) +
+    theme(legend.position="none",
+          plot.title = element_text(size = 14),
+          axis.title = element_text(size = 14),
+          axis.text = element_text(size = 14)) +
+    ggpubr::geom_bracket(
+      aes(xmin = group1, xmax = group2, label = FAV_p),
+      data = FAV_table, y.position = c(6.1, 5.6), inherit.aes = F, tip.length = 0.01, vjust=0.5)
+)
+
+
+```
+
+```{r Fig 2}
+
+CAVp <- cowplot::plot_grid(plot_SEX_CAV_lifetime, 
+                           plot_EDU_CAV_lifetime + theme(axis.title.y = element_blank()), 
+                           plot_COG_CAV_lifetime + theme(axis.title.y = element_blank()), 
+                           plot_MRI_CAV_lifetime + theme(axis.title.y = element_blank()),
+                           nrow = 1, labels = c('', ''))
+
+FAVp <- cowplot::plot_grid(plot_SEX_FAV,
+                           plot_EDU_FAV + theme(axis.title.y = element_blank()), 
+                           plot_COG_FAV + theme(axis.title.y = element_blank()), 
+                           plot_MRI_FAV + theme(axis.title.y = element_blank()),
+                           nrow = 1, labels = c('', ''))
+
+
+tiff(here("results", "1_descriptives", "Figure2_manuscript_rev.tiff"), width = 300, height = 190,
+     units = 'mm', res = 400)
+
+(figure2 <- cowplot::plot_grid(CAVp, FAVp,
+                               nrow=2, labels = c("", ""), 
+                               #label_x = 0, label_y = 0.98,
+                               hjust = 0, vjust = 0)
+)
+dev.off()
+
+
+pdf(here("results", "1_descriptives", "Figure2_manuscript.pdf"), width = 10, height = 7)
+figure2
+dev.off()
+
+```
+
+
+

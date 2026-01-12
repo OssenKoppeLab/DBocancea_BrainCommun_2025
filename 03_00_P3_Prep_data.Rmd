@@ -1,0 +1,480 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+
+library(tidyverse)
+library(here)
+
+```
+
+## Mortality an conversion
+
+```{r}
+# Load AD continuum dataset for the IDs
+dat <- read.csv(here("data","processed", "data_ADcont_atQbaseline.csv"))
+
+```
+
+
+### Mortality data
+
+```{r}
+# Load mortality data (one observation per patient)
+dat_mort <- readxl::read_excel(here("data", "raw","551_cog_reserve_activity_DBo_20231124_BLmortality.xlsx"), col_names = T) %>% 
+    filter(I_ID %in% dat$I_ID)  # keep only IDs in dat
+
+# clean dates
+dat_mort <- dat_mort %>% 
+  mutate(I_live = if_else(I_die == 1, NA, I_live )) %>% # if dead, I_live not relevant anymore
+  mutate(I_die_date = as.Date(I_die_da), .after=I_die) %>% 
+  mutate(I_live_date = as.Date(I_live), .after=I_die) %>% 
+  select(-I_die_da, -I_live)
+
+```
+
+
+### Conversion data
+
+```{r}
+
+# Load diagnosis conversion data
+dat_conv <- readxl::read_excel(here("data", "raw","551_cog_reserve_activity_DBo_20231124_LongDiag.xlsx"), col_names = T) %>%
+  filter(I_ID %in% dat$I_ID) %>%  # keep only IDs in dat
+  mutate(D_dat = as.Date(D_dat)) %>%
+  mutate(D_Q_grouped = case_when(diagnoseOms == "Possible AD" | diagnoseOms == "Probable AD" ~ "AD",
+                                 diagnoseOms == "Subjectieve klachten" ~ "SCD",
+                                 TRUE ~ diagnoseOms), .after=diagnoseOms)
+
+## CLEAN UP THIS DATASET
+
+# remove the one observation of I_ID = 8617 where he was diagnosed as "Proefpersoon"
+# remove also the postponed diagnoses observations
+dat_conv <- dat_conv %>% 
+  filter(!(D_Q_grouped %in% c("Proefpersoon", "Uitgestelde diagnose", "Neurologie anders", "Psychiatrie")))
+
+
+# Bring in the Diagnosis date and drop observations before that date for each individual (since diag date is closest to CAV_date)
+dat_conv <- dat_conv %>%
+  left_join(., dat[,c("I_ID", "D_Q_date")], by="I_ID") %>%
+  group_by(I_ID) %>%
+  filter(D_dat >= D_Q_date) %>%
+  ungroup()
+
+
+# Add an indicator column whether a future diagnosis is different
+dat_conv <- dat_conv %>%
+  mutate(Time_diff = round(as.numeric(difftime(D_dat, D_Q_date, unit="days")) /365, digits=3)) %>%
+  group_by(I_ID) %>%
+  mutate(visit = row_number(),
+         n_visits = max(visit),
+         Progressed = D_Q_grouped != lag(D_Q_grouped),  # indicator if diagnosis changed with respect to previous obs
+         n_changes = sum(Progressed, na.rm = T)
+         ) %>%
+  ungroup()
+
+
+
+## CONVERSION rules
+
+# If SCD converts to MCI and then to some dementia, count the first time to MCI conversion
+# If SCD or MCI converts to other dementia type (VaD, PPA, DLB, Dementie anders), count as conversion
+
+# If there is more than one (valid) conversion, take the first one only
+dat_conv <- dat_conv %>%
+  group_by(I_ID) %>% 
+  mutate(Conv = if_else(n_changes == 0, 0, 1),
+         Date_conv = case_when(n_changes == 0 ~ NA,
+                               n_changes > 1  ~ D_dat[which(Progressed == TRUE)[1]],
+                               n_changes == 1 ~ D_dat[which(Progressed == TRUE)[1]]),
+         Date_last = case_when( (n_changes == 0 & n_visits > 1) ~ D_dat[n_visits]),
+         D_conv = case_when(n_changes == 0 ~ D_Q_grouped[1L],
+                            n_changes > 1  ~ D_Q_grouped[which(Progressed == TRUE)[1]],
+                            n_changes == 1 ~ D_Q_grouped[which(Progressed == TRUE)[1]]),
+         Time_conv = case_when(n_changes == 0 & n_visits == 1 ~ NA,
+                               (n_changes == 0 & n_visits > 1) ~ Time_diff[n_visits],
+                               n_changes > 1  ~ Time_diff[which(Progressed == TRUE)[1]],
+                               n_changes == 1 ~ Time_diff[which(Progressed == TRUE)[1]]),
+  ) %>% 
+  filter(row_number()==1) %>% 
+  ungroup()
+
+
+# COnversion from SCD or MCI to Psychiatry doesn't count I_ID = 8612 (removed observations above before counting)
+# Conversion to Neurologie anders doesn't count:  11586, 11719 (removed observations above before counting)
+# Conversion from MCI to SCD doesn't count
+# Conversion from AD to MCI doesn't count
+dat_conv <- dat_conv %>%
+  mutate(reverse = if_else( (D_Q_grouped == "MCI" & D_conv == "SCD") | (D_Q_grouped == "AD" & D_conv %in% c("SCD", "MCI")) , 1, 0),
+         Conv = if_else(reverse == 1, 0, Conv),
+         Time_conv = if_else(reverse == 1, NA, Time_conv),
+         Date_conv = if_else(reverse == 1, NA, Date_conv)
+         )
+
+
+# Filter out AD people as this analysis only applies to SCD and MCI
+dat_conv <- dat_conv %>%
+  filter(D_Q_grouped != "AD")
+
+# For those that don't convert, censor date
+## If they have a followup diagnosis, use the date of the last visit as censoring date (done this above already)
+
+
+```
+
+
+
+## Prep datasets
+
+### Prep original unimputed data
+
+```{r}
+# Merge with AD conitnuum dataset (original with missing values)
+dat <- dat %>% 
+  select(-c("I_die" , "I_die_da",  "I_die_age", "I_live")) # drop the old variables in dat, we want to replace them with updated info
+
+dat <- dat_mort %>% 
+  left_join(., dat_conv[,c("I_ID", "Conv", "Time_conv", "D_conv", "Date_conv", "Date_last")], by="I_ID") %>% 
+  left_join(., dat, by="I_ID") 
+
+# calculate time between questionnaire date and time of death, or last timpoint known alive
+dat <- dat %>% 
+  mutate(Time_mort  = round(case_when(I_die == 0 ~ as.numeric(difftime(I_live_date, CAV_date, unit="days")) /365,
+                                 I_die == 1 ~ as.numeric(difftime(I_die_date,  CAV_date, unit="days")) /365), digits = 3), .after=I_live_date)
+
+
+# Censor the conversion dates, i.e. for those with no conversion and only one visit, use mortality information to censor
+dat <- dat %>% 
+  mutate(Time_conv_m = if_else(Conv == 0 & is.na(Time_conv), Time_mort, Time_conv ),
+         Time_conv = if_else(Conv == 0 & is.na(Time_conv), 0, Time_conv ))
+
+
+
+# Create edu tertiles and grouped APOE
+dat <- dat %>% 
+  mutate(I_edu_tert = case_when(I_edu_VE %in% c(1,2,3,4) ~ "Low",
+                                I_edu_VE %in% c(5) ~ "Medium",
+                                I_edu_VE %in% c(6,7) ~ "High"), .after=I_edu_VE) %>%
+  mutate(Edu_years = case_when(I_edu_VE == 1 ~ 5,
+                               I_edu_VE == 2 ~ 6,
+                               I_edu_VE == 3 ~ 8,
+                               I_edu_VE == 4 ~ 9,
+                               I_edu_VE == 5 ~ 10,
+                               I_edu_VE == 6 ~ 13, 
+                               I_edu_VE == 7 ~ 17  ), .after=I_edu_VE) %>% 
+  mutate(APOE_grouped = case_when(APOE %in% c("E2E2", "E2E3") ~  "E2 positive",
+                                  APOE %in% c("E4E4")         ~  "E4 homozygous",
+                                  APOE %in% c("E3E4", "E2E4") ~  "E4 heterozygous",
+                                  APOE %in% c("E3E3")         ~  "E4 negative" ), .after = APOE) %>% 
+  mutate(APOE_e4 = case_when(APOE %in% c("E2E4","E3E4", "E4E4") ~ "E4 positive",
+                             APOE %in% c("E2E2","E3E3", "E2E3") ~ "E4 negative"), .after = APOE)
+
+
+# Make factors
+dat <- dat %>%
+  select(I_ID, I_die, Time_mort, I_live_date, I_die_date, 
+         Conv, Time_conv, Time_conv_m, D_conv,
+         CAV_date, I_age_q, I_sex, I_edu_VE, Edu_years, I_edu_tert, D_Q_grouped, 
+         APOE, APOE_e4, APOE_grouped, A_positive, MMSE_q, Z_MEM, Z_EXEC,
+         CAV_lifetime, CAV_past, CAV_current, FAV_total, CAV_response_rate, FAV_response_rate, 
+         ADsign_thick_unweighted, wholebrain_thick_weighted, temporoparietal_thick_weighted) %>% 
+  mutate(I_sex        = factor(I_sex, 
+                               levels=c("m","f"), labels=c("Male", "Female")),
+         I_edu_tert   = factor(I_edu_tert,
+                               levels = c("Low", "Medium", "High")),
+         I_edu_VE     = as.numeric(I_edu_VE),
+         A_positive   = factor(A_positive),
+         APOE         = factor(APOE, levels = c("E2E2", "E2E3", "E2E4", "E3E3", "E3E4", "E4E4")),
+         APOE_grouped = factor(APOE_grouped,
+                               levels = c("E2 positive", "E4 negative", "E4 heterozygous","E4 homozygous")),
+         APOE_e4      = factor(APOE_e4, levels = c("E4 negative", "E4 positive")),
+         D_Q_grouped  = factor(D_Q_grouped, 
+                               levels=c("SCD", "MCI", "AD"))) %>% 
+  rename(Died = I_die,
+         Age = I_age_q,
+         Sex = I_sex,
+         Edu_tert = I_edu_tert,
+         Edu_VE = I_edu_VE,
+         Diagnosis = D_Q_grouped,
+         MMSEq = MMSE_q,
+         MEMq = Z_MEM,
+         EXECq = Z_EXEC,
+         CAV_lifetime = CAV_lifetime,
+         CAV_past = CAV_past,
+         CAV_current = CAV_current,
+         FAV = FAV_total,
+         ADsign_thick = ADsign_thick_unweighted,
+         WB_thick = wholebrain_thick_weighted,
+         TP_thick = temporoparietal_thick_weighted)
+
+
+# Label columns
+dat <- sjlabelled::var_labels(dat, 
+                              Time_mort = "Time (years)",
+                              Sex = "Sex",
+                              Age = "Age",
+                              Edu_VE	 = "Education (Verhage)",
+                              Edu_tert = "Education - tert",
+                              Edu_years = "Education - years",
+                              CAV_lifetime = "Lifetime CAQ",
+                              CAV_past = "Past CAQ",
+                              CAV_current = "Current CAQ",
+                              FAV = "PASE score",
+                              MMSEq = "MMSE bl",
+                              MEMq = "Memory bl",
+                              EXECq = "Executive function bl",
+                              APOE = "APOE genotype",
+                              APOE_e4 = "APOE e4 status",
+                              APOE_grouped = "APOE genotype",
+                              A_positive = "Amyloid status",
+                              Diagnosis = "Diagnosis",
+                              CAV_response_rate = "CAQ response rate",
+                              FAV_response_rate = "PASE response rate",
+                              WB_thick = "Wholebrain thickness",
+                              TP_thick = "Temporoparietal thickness")
+
+
+```
+
+```{r}
+# Save RDS object for analyses
+
+# original unimputed cross-sectional dataset
+saveRDS(dat, file = here("data", "processed", "Part3_ADcont_dat.rds"))
+
+```
+
+### Prep imputed mids
+
+The imputed mids object contains:
+- CAV items
+- FAV items
+- Total scores passive
+- Total scores directly imputes
+- I_ID, age, sex
+- Diagnosis, MMSE, MEM, EXEC, A_positive
+
+- Edu VE --> need to tertile this
+- APOE --> need to group this
+
+
+```{r}
+
+# load mids object (from imputation in part 2)
+datmids <- readRDS(here("data", "processed", "Part2_mids_m40i100.rds"))
+
+# Prep imputed datasets
+datimp <- complete(datmids, action="long", include = TRUE)
+
+
+# Bring from the original datasets variables
+datimp <- datimp %>% 
+  left_join(., dat[,c("I_ID", "Died", "Time_mort", "Conv", "Time_conv", "Time_conv_m", "D_conv",
+                      "CAV_response_rate", "FAV_response_rate", "WB_thick", "TP_thick")], by="I_ID")
+
+
+# Calculate final total scores
+# If response_rate < 25%, take directly imputed total scores, otherwise take the passively imputed score
+datimp <- datimp %>% 
+  mutate(CAV_lifetime = if_else(CAV_response_rate < 0.25, CAV_lifetime, CAV_lifetime_passive),
+         CAV_past     = if_else(CAV_response_rate < 0.25, CAV_past,     CAV_past_passive),
+         CAV_current  = if_else(CAV_response_rate < 0.25, CAV_current,  CAV_current_passive),
+         FAV_total    = if_else(FAV_response_rate < 0.25, FAV_total,    FAV_total_passive))
+
+
+# Calculate edu tertiles and group APOE
+datimp <- datimp %>% 
+  mutate(I_edu_tert = case_when(I_edu_VE %in% c(1,2,3,4) ~ "Low",
+                                 I_edu_VE %in% c(5) ~ "Medium",
+                                 I_edu_VE %in% c(6,7) ~ "High"), .after=I_edu_VE) %>% 
+   mutate(Edu_years = as.numeric(case_when(I_edu_VE == 1 ~ 5,
+                               I_edu_VE == 2 ~ 6,
+                               I_edu_VE == 3 ~ 8,
+                               I_edu_VE == 4 ~ 9,
+                               I_edu_VE == 5 ~ 10,
+                               I_edu_VE == 6 ~ 13, 
+                               I_edu_VE == 7 ~ 17  )), .after=I_edu_VE) %>% 
+  mutate(APOE_grouped = case_when(APOE %in% c("E2E2", "E2E3") ~  "E2 positive",
+                                  APOE %in% c("E4E4")         ~  "E4 homozygous",
+                                  APOE %in% c("E3E4", "E2E4") ~  "E4 heterozygous",
+                                  APOE %in% c("E3E3")         ~  "E4 negative" ), .after = APOE) %>% 
+  mutate(APOE_e4 = case_when(APOE %in% c("E2E4","E3E4", "E4E4") ~ "E4 positive",
+                             APOE %in% c("E2E2","E3E3", "E2E3") ~ "E4 negative"), .after = APOE)
+  
+
+# Make factors
+datimp <- datimp %>%
+  select('.imp', '.id', I_ID, Died, Time_mort, Conv, Time_conv, Time_conv_m, D_conv, I_age_q, I_sex, I_edu_VE, I_edu_tert, Edu_years, D_Q_grouped, APOE, APOE_e4, APOE_grouped, MMSE_q, Z_MEM, Z_EXEC, 
+         CAV_lifetime, CAV_past, CAV_current, FAV_total, WB_thick, TP_thick) %>% 
+  mutate(I_sex        = factor(I_sex, 
+                               levels=c("m","f"), labels=c("Male", "Female")),
+         I_edu_tert   = factor(I_edu_tert,
+                               levels = c("Low", "Medium", "High")),
+         I_edu_VE     = as.numeric(I_edu_VE),
+         APOE         = factor(APOE, levels = c("E2E2", "E2E3", "E2E4", "E3E3", "E3E4", "E4E4")),
+         APOE_e4      = factor(APOE_e4, levels = c("E4 negative", "E4 positive")),
+         APOE_grouped = factor(APOE_grouped,
+                               levels = c("E2 positive", "E4 negative", "E4 heterozygous","E4 homozygous")),
+         D_Q_grouped  = factor(D_Q_grouped, 
+                               levels=c("SCD", "MCI", "AD"))) %>% 
+  rename(Age = I_age_q,
+         Sex = I_sex,
+         Edu_tert = I_edu_tert,
+         Edu_VE = I_edu_VE,
+         Diagnosis = D_Q_grouped,
+         MMSEq = MMSE_q,
+         MEMq = Z_MEM,
+         EXECq = Z_EXEC,
+         CAV_lifetime = CAV_lifetime,
+         CAV_past = CAV_past,
+         CAV_current = CAV_current,
+         FAV = FAV_total)
+
+
+# center and zscore variables, within each imputed dataset
+datimp <- datimp %>%
+  group_by(.imp) %>%
+  # center variables
+  mutate(Age_c          = Age - mean(Age), .after=Age) %>%
+  mutate(Edu_years_c    = Edu_years - mean(Edu_years), .after=Edu_years) %>%
+  mutate(Edu_VE_c       = Edu_VE - mean(Edu_VE), .after=Edu_VE) %>%
+  mutate(CAV_lifetime_c = CAV_lifetime - mean(CAV_lifetime, na.rm=TRUE), .after=CAV_lifetime) %>%
+  mutate(CAV_current_c  = CAV_current - mean(CAV_current, na.rm=TRUE), .after=CAV_current) %>%
+  mutate(CAV_past_c     = CAV_past - mean(CAV_past, na.rm=TRUE), .after=CAV_past) %>%
+  mutate(FAV_c          = FAV - mean(FAV, na.rm=TRUE), .after=FAV) %>%
+  mutate(MMSEq_c        = MMSEq - mean(MMSEq, na.rm=TRUE), .after=MMSEq) %>%
+  mutate(MEMq_c         = MEMq - mean(MEMq, na.rm=TRUE), .after=MEMq) %>%
+  mutate(EXECq_c        = EXECq - mean(EXECq, na.rm=TRUE), .after=EXECq) %>%
+  mutate(WB_thick_c     = WB_thick - mean(WB_thick, na.rm=TRUE), .after=WB_thick) %>%
+  mutate(TP_thick_c     = TP_thick - mean(TP_thick, na.rm=TRUE), .after=TP_thick) %>%
+
+
+  # scale variables
+  mutate(Age_s          = (Age - mean(Age) )/sd(Age), .after=Age) %>%
+  mutate(Edu_years_s    = Edu_years - mean(Edu_years, na.rm=TRUE) /sd(Edu_years, na.rm=TRUE), .after=Edu_years) %>%
+  mutate(Edu_VE_s       = Edu_VE - mean(Edu_VE, na.rm=TRUE) /sd(Edu_VE, na.rm=TRUE), .after=Edu_VE) %>%
+  mutate(CAV_lifetime_s = (CAV_lifetime - mean(CAV_lifetime, na.rm=TRUE) )/sd(CAV_lifetime, na.rm=TRUE), .after=CAV_lifetime) %>%
+  mutate(CAV_current_s  = (CAV_current - mean(CAV_current, na.rm=TRUE) )/sd(CAV_current, na.rm=TRUE), .after=CAV_current) %>%
+  mutate(CAV_past_s     = (CAV_past - mean(CAV_past, na.rm=TRUE) )/sd(CAV_past, na.rm=TRUE), .after=CAV_past) %>%
+  mutate(FAV_s          = (FAV - mean(FAV, na.rm=TRUE) )/sd(FAV, na.rm=TRUE), .after=FAV) %>%
+  mutate(MMSEq_s        = (MMSEq - mean(MMSEq, na.rm=TRUE) )/sd(MMSEq, na.rm=TRUE), .after=MMSEq) %>%
+  mutate(MEMq_s         = (MEMq - mean(MEMq, na.rm=TRUE) )/sd(MEMq, na.rm=TRUE), .after=MEMq) %>%
+  mutate(EXECq_s        = (EXECq - mean(EXECq, na.rm=TRUE) )/sd(EXECq, na.rm=TRUE), .after=EXECq) %>%
+  mutate(WB_thick_s     = (WB_thick - mean(WB_thick, na.rm=TRUE) )/sd(WB_thick, na.rm=TRUE), .after=WB_thick) %>%
+  mutate(TP_thick_s     = (TP_thick - mean(TP_thick, na.rm=TRUE) )/sd(TP_thick, na.rm=TRUE), .after=TP_thick) %>%
+  ungroup()
+
+
+# back to mids
+datmids <- mice::as.mids(datimp)
+
+
+```
+
+
+```{r}
+
+saveRDS(datmids, file = here("data", "processed", "Part3_ADcont_datmids.rds"))
+
+```
+
+
+### Prep data for plotting
+
+Take the median at the individual-level across the multiple imputed datasets for plotting purposes. 
+
+```{r}
+
+# Take the imputed sets only
+datimp <- complete(datmids, action="long", include = FALSE)
+
+# make one dataset with the median value across the imputed variables
+dat_median <- datimp %>% 
+  group_by(.id) %>% 
+  select(.id, I_ID, Age, Edu_years, MMSEq, MEMq, EXECq, CAV_lifetime, CAV_past, CAV_current, FAV, WB_thick, TP_thick) %>% 
+  summarise_all(.funs = median) %>% 
+  ungroup()
+
+# declare function to extract mode
+calculate_mode <- function(x) {
+  uniqx <- unique(x)
+  uniqx[which.max(tabulate(match(x, uniqx)))] }
+
+dat_mode <- datimp %>% 
+  group_by(.id) %>% 
+  select(.id, Sex, Edu_VE, Edu_tert, Diagnosis, APOE_e4, APOE, APOE_grouped) %>% 
+  summarise_all(.funs = calculate_mode) %>% 
+  ungroup()
+
+
+dat_median <- dat_median %>% 
+  left_join(., dat_mode, by=".id") 
+
+
+# Add mortality info
+dat_median <- dat_median %>% 
+  left_join(., dat[,c("I_ID", "Died", "Time_mort", "Conv", "Time_conv", "Time_conv_m", "D_conv")], by="I_ID")
+
+
+# Center/scale variables
+
+dat_median <- dat_median %>%
+  # scale variables
+  mutate(Age_s          = (Age - mean(Age) )/sd(Age), .after=Age) %>%
+  mutate(Edu_years_s    = Edu_years - mean(Edu_years, na.rm=TRUE) /sd(Edu_years, na.rm=TRUE), .after=Edu_years) %>%
+  mutate(Edu_VE_s       = Edu_VE - mean(Edu_VE, na.rm=TRUE) /sd(Edu_VE, na.rm=TRUE), .after=Edu_VE) %>%
+  mutate(CAV_lifetime_s = (CAV_lifetime - mean(CAV_lifetime, na.rm=TRUE) )/sd(CAV_lifetime, na.rm=TRUE), .after=CAV_lifetime) %>%
+  mutate(CAV_current_s  = (CAV_current - mean(CAV_current, na.rm=TRUE) )/sd(CAV_current, na.rm=TRUE), .after=CAV_current) %>%
+  mutate(CAV_past_s     = (CAV_past - mean(CAV_past, na.rm=TRUE) )/sd(CAV_past, na.rm=TRUE), .after=CAV_past) %>%
+  mutate(FAV_s          = (FAV - mean(FAV, na.rm=TRUE) )/sd(FAV, na.rm=TRUE), .after=FAV) %>%
+  mutate(MMSEq_s         = (MMSEq - mean(MMSEq, na.rm=TRUE) )/sd(MMSEq, na.rm=TRUE), .after=MMSEq) %>%
+  mutate(MEMq_s          = (MEMq - mean(MEMq, na.rm=TRUE) )/sd(MEMq, na.rm=TRUE), .after=MEMq) %>%
+  mutate(EXECq_s         = (EXECq - mean(EXECq, na.rm=TRUE) )/sd(EXECq, na.rm=TRUE), .after=EXECq) %>%
+  mutate(WB_thick_s     = (WB_thick - mean(WB_thick, na.rm=TRUE) )/sd(WB_thick, na.rm=TRUE), .after=WB_thick) %>%
+  mutate(TP_thick_s     = (TP_thick - mean(TP_thick, na.rm=TRUE) )/sd(TP_thick, na.rm=TRUE), .after=TP_thick)
+
+# Label columns
+dat_median <- sjlabelled::var_labels(dat_median,
+                                     Time_mort = "Time (years)",
+                                     Sex = "Sex",
+                                     Age = "Age",
+                                     Age_s = "Age",
+                                     Edu_VE	 = "Education",
+                                     Edu_tert = "Education - tert",
+                                     CAV_lifetime = "Lifetime CAQ",
+                                     CAV_lifetime_s = "Lifetime CAQ",
+                                     CAV_past = "Past CAQ",
+                                     CAV_past_s = "Past CAQ",
+                                     CAV_current = "Current CAQ",
+                                     CAV_current_s = "Current CAQ",
+                                     FAV = "PASE score",
+                                     FAV_s = "PASE score",
+                                     MMSEq = "MMSE",
+                                     MMSEq_s = "MMSE",
+                                     MEMq = "Memory",
+                                     MEMq_s = "Memory",
+                                     EXECq = "Executive function",
+                                     EXECq_s = "Executive function",
+                                     APOE = "APOE genotype",
+                                     APOE_e4 = "APOE e4 status",
+                                     APOE_grouped = "APOE genotype",
+                                     Diagnosis = "Diagnosis",
+                                     WB_thick = "Wholebrain thickness",
+                                     TP_thick = "Temporoparietal thickness"
+)
+
+```
+
+
+```{r}
+
+saveRDS(dat_median, file = here("data", "processed", "Part3_ADcont_dat_median.rds"))
+
+```
+
+
+
+

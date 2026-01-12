@@ -1,0 +1,1104 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+
+library(tidyverse)
+library(dplyr)
+library(here)
+
+source(here("scripts", "Functions.R"))
+
+```
+
+
+## ADC qdata
+
+Initial N obs = 5652
+
+To cleanup:
+- divide in CAV and FAC to clean them up separately and then merge back
+
+CAV
+- remove fully duplicated rows (N drops from 5652 to 4287)
+- remove rows with all NAs (including date, so there's only I_ID but all questionnaire related items are NA) (N drops to 4077) 
+    NOTE: there could still be people with questionnaire date but all items missing!
+- unique IDs: 3912
+
+
+FAV
+- remove fully duplicated rows (N drops from 5652 to 5067)
+- remove rows with all NAs (including date, so there's only I_ID but all questionnaire related items are NA) (N drops to 4874)
+    NOTE: there could still be people with questionnaire date but all items missing!
+- unique IDs: 3929
+
+
+```{r}
+# Clean up Questionnaire data we received back from ADC db
+
+dat_onlineADC <- readxl::read_excel(here("data", "raw",  "551_cog_reserve_activity_DBo_20230428_onlineADC.xlsx")) 
+
+
+# ------ CAV --------
+# -------------------
+
+dat_onlineADC_CAV <- dat_onlineADC %>% 
+  select("I_ID", contains("cognitieve_activiteit")) %>% 
+  distinct() %>%                                                               # remove fully duplicated rows
+  filter(!if_all(contains("cognitieve_activiteit"), is.na)) %>%                # remove rows with all NAs
+  rename(CAV_alleen_samen = "self_adc_cognitieve_activiteit_wijze_invullen",   # rename columns
+         CAV_date = "self_adc_cognitieve_activiteit_Invuldatum",    
+         CAV_1   = "self_adc_cognitieve_activiteit_spellen6",
+         CAV_2   = "self_adc_cognitieve_activiteit_voorlezen6",
+         CAV_3   = "self_adc_cognitieve_activiteit_verhalen6",
+         
+         CAV_4   = "self_adc_cognitieve_activiteit_bibliotheek12",
+         CAV_5   = "self_adc_cognitieve_activiteit_krant12",
+         CAV_6   = "self_adc_cognitieve_activiteit_tijdschriften12",
+         CAV_7   = "self_adc_cognitieve_activiteit_boeken12",
+         CAV_8   = "self_adc_cognitieve_activiteit_brieven12",
+         CAV_9   = "self_adc_cognitieve_activiteit_spellen12",
+         
+         CAV_10   = "self_adc_cognitieve_activiteit_bibliotheek18",
+         CAV_11   = "self_adc_cognitieve_activiteit_krant18",
+         CAV_12   = "self_adc_cognitieve_activiteit_tijdschriften18",
+         CAV_13   = "self_adc_cognitieve_activiteit_boeken18",
+         CAV_14   = "self_adc_cognitieve_activiteit_brieven18",
+         CAV_15   = "self_adc_cognitieve_activiteit_spellen18",
+         
+         CAV_16   = "self_adc_cognitieve_activiteit_krant40",
+         CAV_17   = "self_adc_cognitieve_activiteit_tijdschriften40",
+         CAV_18   = "self_adc_cognitieve_activiteit_boeken40",
+         CAV_19   = "self_adc_cognitieve_activiteit_brieven40",
+         CAV_20   = "self_adc_cognitieve_activiteit_spellen40",
+         
+         CAV_21  = "self_adc_cognitieve_activiteit_krantnu",
+         CAV_22  = "self_adc_cognitieve_activiteit_tijdschriftennu",
+         CAV_23  = "self_adc_cognitieve_activiteit_boeknu",
+         CAV_24  = "self_adc_cognitieve_activiteit_brievennu",
+         CAV_25  = "self_adc_cognitieve_activiteit_spellennu" ) %>% 
+  select(I_ID, CAV_date, contains("CAV_")) %>% 
+  mutate(CAV_date = as.Date(CAV_date)) %>% 
+  mutate(CAV_source = "onlineADC", .after=I_ID)
+
+
+
+# ------ FAV --------
+# -------------------
+
+dat_onlineADC_FAV <- dat_onlineADC %>%
+  select("I_ID", contains("fysieke_activiteit"))%>% 
+  distinct() %>% 
+  filter(!if_all(contains("fysieke_activiteit"), is.na)) %>% 
+  rename(FAV_alleen_samen = "self_adc_fysieke_activiteit_wijze_invullen", 
+         FAV_date = "self_adc_fysieke_activiteit_Invuldatum", 
+         FAV_1  = "self_adc_fysieke_activiteit_zitten_beziggehouden",          
+         # self_adc_fysieke_activiteit_zittende_activiteit,
+         FAV_1B = "self_adc_fysieke_activiteit_uur_zittende_activiteit",     
+         FAV_2  = "self_adc_fysieke_activiteit_wandelen_fietsen",              	
+         FAV_2A = "self_adc_fysieke_activiteit_uur_wandelen_fietsen",          	
+         FAV_3  = "self_adc_fysieke_activiteit_lichte_inspanning",	              
+         # self_adc_fysieke_activiteit_activiteit_lichte_inspanning,
+         FAV_3B = "self_adc_fysieke_activiteit_uur_lichte_inspanning",     	
+         FAV_4  = "self_adc_fysieke_activiteit_matige_inspanning",             	
+         # self_adc_fysieke_activiteit_activiteit_matige_inspanning,
+         FAV_4B = "self_adc_fysieke_activiteit_uur_matige_inspanning",         	
+         FAV_5  = "self_adc_fysieke_activiteit_zware_inspanning",       	
+         # self_adc_fysieke_activiteit_activiteit_zware_inspanning,	
+         FAV_5B = "self_adc_fysieke_activiteit_uur_zware_inspanning",         	
+         FAV_6  = "self_adc_fysieke_activiteit_oefeningen_uithoudingsvermogen",	
+         # self_adc_fysieke_activiteit_activiteiten_uithoudingsvermogen,	
+         FAV_6B = "self_adc_fysieke_activiteit_uur_inspannende_activiteiten",  	
+         FAV_7  = "self_adc_fysieke_activiteit_licht_huishoudelijk_werk",     	
+         FAV_8  = "self_adc_fysieke_activiteit_zwaar_huishoudelijk_werk",       	
+         FAV_9A = "self_adc_fysieke_activiteit_deelname_activiteiten_1",	        
+         FAV_9B = "self_adc_fysieke_activiteit_deelname_activiteiten_2",       	
+         FAV_9C = "self_adc_fysieke_activiteit_deelname_activiteiten_3",       	
+         FAV_9D = "self_adc_fysieke_activiteit_deelname_activiteiten_4",       	
+         FAV_10 = "self_adc_fysieke_activiteit_vrijwilliger",                  	
+         FAV_10A= "self_adc_fysieke_activiteit_uur_vrijwilliger",              	
+         FAV_10B= "self_adc_fysieke_activiteit_inspanning_werk" ) %>% 
+  select(I_ID, FAV_date, contains("FAV_")) %>% 
+  mutate(FAV_date = as.Date(FAV_date)) %>% 
+  mutate(FAV_source = "onlineADC", .after=I_ID)
+
+```
+
+
+## SAV qdata
+
+Bring in those participants that were missing Q_date in our SAV file (hence were not entered into the ADC db) and we estimated the date based on our previously defined rules: 
+
+```{r}
+dat_sav <- read.csv(here("data", "raw",  "CBRproject_clean.csv"))
+```
+
+
+```{r}
+# # sanity check -  are all IDs with qdate in sav also in dat_onlineADC? --> no, not sure why
+# ids_with_qdate <- unique(dat_sav$I_ID[!is.na(dat_sav$Q_date_db)])
+# all(ids_with_qdate %in% unique(dat_onlineADC$I_ID))
+# 
+# dat_sav %>% 
+#     mutate(in_onlineADC  = if_else(I_ID %in% unique(dat_onlineADC$I_ID), 1, 0), .after=I_ID) %>% 
+#     filter(in_onlineADC == 0)
+# 
+# dat_sav %>% filter()
+# ## I manualy checked (for some) whether these IDs are in the baseline dataset --> they are not, data seems to have been removed.
+# ## I conclude they might not have given permission for research. 
+
+```
+
+
+```{r}
+# keep subjects that did not have Qdate and we estimated it for them (these are the ones that have a missing in Q_date_db)
+dat_sav <- dat_sav %>% 
+  filter(is.na(Q_date_db))
+
+
+dat_sav_CAV <- dat_sav %>% 
+  select(I_ID, Q_date, CAV_alleen_samen, 
+         "CAV_8", "CAV_9", "CAV_10", "CAV_11", "CAV_12", "CAV_13", "CAV_14", "CAV_15", "CAV_16", "CAV_17", 
+         "CAV_18", "CAV_19", "CAV_20", "CAV_21", "CAV_22", "CAV_23", "CAV_24", "CAV_25", "CAV_26", "CAV_27", 
+         "CAV_28", "CAV_29", "CAV_30", "CAV_31", "CAV_32") %>% 
+  rename(CAV_date = "Q_date",
+         CAV_1   = "CAV_8",
+         CAV_2   = "CAV_9",
+         CAV_3   = "CAV_10",
+         
+         CAV_4   = "CAV_11",
+         CAV_5   = "CAV_12",
+         CAV_6   = "CAV_13",
+         CAV_7   = "CAV_14",
+         CAV_8   = "CAV_15",
+         CAV_9   = "CAV_16",
+         
+         CAV_10   = "CAV_17",
+         CAV_11   = "CAV_18",
+         CAV_12   = "CAV_19",
+         CAV_13   = "CAV_20",
+         CAV_14   = "CAV_21",
+         CAV_15   = "CAV_22",
+         
+         CAV_16   = "CAV_23",
+         CAV_17   = "CAV_24",
+         CAV_18   = "CAV_25",
+         CAV_19   = "CAV_26",
+         CAV_20   = "CAV_27",
+         
+         CAV_21  = "CAV_28",
+         CAV_22  = "CAV_29",
+         CAV_23  = "CAV_30",
+         CAV_24  = "CAV_31",
+         CAV_25  = "CAV_32" ) %>% 
+  mutate(CAV_date = as.Date(CAV_date)) %>% 
+  mutate(CAV_source = "sav_file", .after=I_ID)
+
+
+
+dat_sav_FAV <- dat_sav %>% 
+  select(I_ID, Q_date, 
+         FAV_alleen_samen,
+         "FAV_1", "FAV_1B", "FAV_2", "FAV_2A", "FAV_3", "FAV_3B", "FAV_4", "FAV_4B", "FAV_5", "FAV_5B", "FAV_6", 
+         "FAV_6B", "FAV_7", "FAV_8", "FAV_9A", "FAV_9B", "FAV_9C", "FAV_9D", "FAV_10", "FAV_10A", "FAV_10B") %>% 
+  rename(FAV_date = "Q_date") %>% 
+  mutate(FAV_date = as.Date(FAV_date)) %>% 
+  mutate(FAV_source = "sav_file", .after=I_ID)
+
+
+
+```
+
+
+### Sanity checks
+
+```{r}
+
+paste("Unique IDs in onlineADC CAV:",  length(unique(dat_onlineADC_CAV$I_ID)))
+paste("Unique IDs in onlineADC FAV:",  length(unique(dat_onlineADC_FAV$I_ID)))
+paste("Unique IDs in Sav FAV/CAV:",  length(unique(dat_sav$I_ID)))
+
+
+
+# ids of subjects without Q_Date (no date from our sav file)
+no_qdate <- dat_sav$I_ID
+
+
+# is any of the IDs in no_qdate in the CAV/FAV data I received from the db? --> yes. could have multiple questionnaires. Will do the same as for all: take questionnaire with date closest to baseline date
+dat_onlineADC_CAV %>% 
+  filter(I_ID %in% no_qdate)
+
+dat_onlineADC_FAV %>% 
+  filter(I_ID %in% no_qdate)
+
+```
+
+
+## Merge ADC and SAV subjects
+
+- there are overlapping, merge them as is for now and deduplicate later
+
+
+```{r}
+
+dat_cav <- rbind(dat_onlineADC_CAV, dat_sav_CAV) %>% 
+  arrange(I_ID, CAV_date) %>% 
+  group_by(I_ID) %>% 
+  mutate(n_CAV  = sum(!is.na(CAV_date)), .after=CAV_date) %>%   # count number of questionnaires per person
+  ungroup()
+
+
+dat_fav <- rbind(dat_onlineADC_FAV, dat_sav_FAV) %>% 
+  arrange(I_ID, FAV_date) %>% 
+  group_by(I_ID) %>% 
+  mutate(n_FAV  = sum(!is.na(FAV_date)), .after=FAV_date) %>%   # count number of questionnaires per person
+  ungroup()
+
+
+rm(dat_onlineADC_CAV, dat_sav_CAV, dat_onlineADC_FAV, dat_sav_FAV)
+
+```
+
+
+
+## Deduplicate
+
+```{r}
+
+# Load baseline ADC data
+dat_bl <- readxl::read_excel(here("data", "raw",  "551_cog_reserve_activity_DBo_20230424_BL.xlsx"))
+
+
+# There's one individual with a wrong I_dat_1 and age=0. 
+# I_ID = 7894
+# MRI date 2015, MMSE baseline 2015, CAV date same date also, --> replace the 0 age with M_age (age at MRI, same date!)
+# Fix I_dat_1 here, and fix again below where merging the data 
+
+dat_bl[dat_bl$I_ID == "7894", "I_dat_1"] = dat_bl[dat_bl$I_ID == "7894", "M_EXAMDATE1"]
+dat_bl$I_dat_1 <-  as.Date(dat_bl$I_dat_1)
+
+```
+
+
+Bring in baseline date, calculate time difference and pick questionnaire closest in time to baseline
+
+
+```{r}
+dat_cav <- dat_cav %>% 
+  left_join(., dat_bl[,c("I_ID", "I_dat_1")], by="I_ID") %>% 
+  relocate(I_dat_1, .after=CAV_date) %>% 
+  mutate(CAV_days_from_bl = as.numeric(difftime(I_dat_1, CAV_date, unit="days")), .after="I_dat_1") %>% 
+  drop_na(CAV_date) %>% 
+  group_by(I_ID) %>% 
+  arrange(I_ID, abs(CAV_days_from_bl)) %>% 
+  filter(row_number()==1) %>% 
+  ungroup()
+
+
+dat_fav <- dat_fav %>% 
+  left_join(., dat_bl[,c("I_ID", "I_dat_1")], by="I_ID") %>% 
+  relocate(I_dat_1, .after=FAV_date) %>% 
+  mutate(FAV_days_from_bl = as.numeric(difftime(I_dat_1, FAV_date, unit="days")), .after="I_dat_1") %>% 
+  drop_na(FAV_date) %>% 
+  group_by(I_ID) %>% 
+  arrange(I_ID, abs(FAV_days_from_bl)) %>% 
+  filter(row_number()==1) %>% 
+  ungroup()
+
+
+```
+
+-> this results in one questionnaire only being selected for those that have several. The one closest to the BL date is chosen. 
+
+
+## Impossible values
+
+Sanity check again for impossible values
+
+
+CAV: all items should be 1-5
+
+FAV: 
+
+In original SAV file (i.e. scoring of paper questionnaires):
+
+FAVvalues1_6 <- c(0:3) # set of normal values for FAV question 1-6
+FAVvalues1_6_10B <- c(1:4) # set of normal values for FAV questions 1-6B, 2A, and 10B.
+FAVvalues7_10 <- c(1,2) # set of normal values for FAV questions 7, 8, 9A-D, 10
+
+
+onlineADC data (note, here all data is in this format):
+
+FAVvalues1_6 <- c(1:4) # set of normal values for FAV question 1-6
+FAVvalues1_6_10B <- c(1:4) # set of normal values for FAV questions 1-6B, 2A, and 10B.
+FAVvalues7_10 <- c(1,2) # set of normal values for FAV questions 7, 8, 9A-D, 10
+
+Note: will need to clean 10A prior to FAV score calculation if used in the formula! 
+
+
+
+```{r}
+
+# sanity checks
+dat_cav %>% 
+  select(starts_with("CAV_")) %>% 
+  psych::describe()
+
+dat_fav %>% 
+  select(starts_with("FAV_")) %>% 
+  psych::describe()
+
+```
+
+--> There are no impossible values. 
+
+
+
+## Merge CAV FAV
+
+```{r}
+
+# sanity check - are all subjects in CAV also in FAV?
+all(dat_cav$I_ID %in% dat_fav$I_ID)   # no
+
+# merge all subjects, regardless of whether they miss cav or fav
+qdata  <- merge(dat_cav, dat_fav, by=c("I_ID", "I_dat_1"), all = T) %>% 
+  relocate(c("FAV_source", "FAV_date", "FAV_days_from_bl", "n_FAV"), .after=n_CAV)
+
+# There's one individual that is not in dat_bl, so remove it
+qdata <- qdata %>% drop_na(I_dat_1)
+
+length(unique(qdata$I_ID))
+
+```
+
+A total of 4121 subjects with either CAV or FAV data. ( still some can have fully missing both -  check next)
+
+
+
+```{r}
+rm(dat_cav, dat_fav, dat_onlineADC, dat_sav, no_qdate)
+```
+
+
+
+
+## Add baseline data
+
+Combine CAVFAV dataset with other baseline variables to prep dataset
+
+```{r}
+
+dat_bl <- readxl::read_excel(here("data", "raw", "551_cog_reserve_activity_DBo_20230424_BL.xlsx"), col_names = T) %>% 
+  filter(I_ID %in% qdata$I_ID) %>% 
+  mutate(I_dat_1 = as.Date(I_dat_1),
+         M_EXAMDATE1 = as.Date(M_EXAMDATE1)) %>% 
+  rename(MRI_date = M_EXAMDATE1)
+
+# Fix the wrong date/age in the baseline dataset
+dat_bl[dat_bl$I_ID == "7894", "I_age_1"] = dat_bl[dat_bl$I_ID == "7894", "M_age"]
+dat_bl[dat_bl$I_ID == "7894", "I_dat_1"] = dat_bl[dat_bl$I_ID == "7894", "MRI_date"]
+
+
+dat_long <- readxl::read_excel(here("data", "raw","551_cog_reserve_activity_DBo_20230424_Long.xlsx"), col_names = T) %>%
+  filter(I_ID %in% qdata$I_ID)
+
+dat_long_domains <- readxl::read_excel(here("data", "interim", "551_cog_reserve_activity_DBo_20230424_Long_Domains.xlsx"), col_names = T) %>%
+  filter(I_ID %in% qdata$I_ID)
+
+dat_longdiag <- readxl::read_excel(here("data", "raw", "551_cog_reserve_activity_DBo_20230424_LongDiag.xlsx"), col_names = T) %>%
+  filter(I_ID %in% qdata$I_ID)
+
+
+# length(unique(dat_bl$I_ID))
+# summary(dat_bl)
+
+dat_bl <- NAsub(dat_bl, columns = colnames(dat_bl)[-1], printoutput = TRUE) # replace 997,998,999 with NAs
+dat_long <- NAsub(dat_long, columns = "V_MMSE", fixvalues = c(97,98,99), printoutput = T) # replace missing value typos
+
+
+# # check if I_dat_1 and V_dat are the same --> they are!
+# dat_bl2 <- dat_bl %>%
+#    mutate(I_V_dat_diff = as.numeric(difftime(I_dat_1, V_dat, unit="days")), .after="V_dat")
+
+
+# Clean the sex variable
+dat_bl <- dat_bl %>% 
+  mutate(I_sex = if_else(I_sex %in% c("M", "m"), "m", "f"))
+
+
+#Merge qdata and all baseline data
+dat <- qdata %>% 
+  select(-I_dat_1) %>% #drop this since we merge it again
+  left_join(., dat_bl, by = "I_ID")
+
+
+rm(qdata, dat_bl)
+
+```
+
+
+### Add Ab-positivity
+
+Add variable for amyloid positivity based on CSF and/or PET:
+
+```{r}
+dat <- dat %>%
+  mutate(A_positive = ifelse(!is.na(PT_result_amyloid),
+                             ifelse(PT_result_amyloid %in% c("positief", "Positief"),
+                                    "A+",
+                                    "A-"),
+                             ifelse(!is.na(CSF_A),
+                                    ifelse(CSF_A == "A+",
+                                           "A+",
+                                           "A-"),
+                                    NA)
+                             ))
+
+
+# sanity check
+dat %>% 
+  select(I_ID, A_positive, PT_result_amyloid, CSF_A)
+```
+
+
+
+
+### Add MMSE
+
+Add MMSE:
+- MMSE_bl and MMSE_bl_date: this is MMSE at baseline, which is not necessarily closest in time to Q_date, but then all Baseline data suffers of this
+- MMSE_q and MMSE_q_date: this is MMSE closest in time to the Questionnaire date
+
+
+```{r}
+
+dat_mmse <- dat_long %>%
+  select(I_ID, V_dat, V_MMSE) %>% 
+  rename(V_dat_long = V_dat,
+         V_MMSE_long = V_MMSE) %>% 
+  left_join(., dat[,c("I_ID", "I_dat_1", "CAV_date")], by = "I_ID") %>% 
+  mutate(Days_from_bl = as.numeric(difftime(as.Date(V_dat_long), as.Date(I_dat_1), unit="days")),
+         Days_from_Q = as.numeric(difftime(as.Date(V_dat_long), as.Date(CAV_date), unit="days"))) %>% 
+  group_by(I_ID) %>% 
+  # take MMSE value at date closest to baseline (probably this is same as baseline for all individuals)
+  arrange(I_ID, Days_from_bl)%>% 
+  mutate(MMSE_bl = V_MMSE_long[1L],
+         MMSE_bl_date = as.Date(V_dat_long[1L])) %>% 
+  # take MMSE value at date closest to Q_date
+  arrange(I_ID, abs(Days_from_Q))%>% 
+  mutate(MMSE_q = V_MMSE_long[1L],
+         MMSE_q_date = as.Date(V_dat_long[1L])) %>% 
+  filter(row_number() == 1) %>% 
+  ungroup()
+  
+
+  # Add MMSE to data
+dat <- dat %>% 
+  left_join(., distinct(dat_mmse[,c("I_ID", "MMSE_q", "MMSE_q_date")]), by="I_ID")
+
+
+```
+
+
+### Add MEM and EF
+
+```{r}
+
+# add single tests from the original dat_long file
+dat_cog <- dat_long %>%
+  select(I_ID, N_date, N_15WTui, N_TMTBt) %>% 
+  left_join(., dat[,c("I_ID", "I_dat_1", "CAV_date")], by = "I_ID") %>% 
+  mutate(Days_from_Q = as.numeric(difftime(as.Date(N_date), as.Date(CAV_date), unit="days"))) %>% 
+  group_by(I_ID) %>% 
+  # take cognitive test value at date closest to Q_date
+  arrange(I_ID, abs(Days_from_Q))%>% 
+  mutate(N_15WTui = N_15WTui[1L],
+         N_TMTBt = N_TMTBt[1L],
+         N_date = as.Date(N_date[1L])) %>% 
+  filter(row_number() == 1) %>% 
+  ungroup()
+
+
+# Clean up these tests
+dat_cog <- dat_cog %>% 
+  mutate(N_15WTui = ifelse(N_15WTui %in% c(997, 998, 999, 9997, 9998, 9999), NA, N_15WTui),
+         N_TMTBt = ifelse(N_TMTBt %in% c(997, 998, 999, 9997, 9998, 9999), NA, N_TMTBt)) %>% 
+  mutate(N_TMTBt = ifelse(N_TMTBt == 0, NA, N_TMTBt)) %>% 
+  mutate(N_TMTBt = ifelse(N_TMTBt > 500, 500, N_TMTBt))
+
+```
+
+
+```{r}
+
+# add domain scores from the long_domains file
+dat_cog_domains <- dat_long_domains %>%
+  select(I_ID, N_date, Z_MEM, Z_EXEC) %>%
+  left_join(., dat[,c("I_ID", "I_dat_1", "CAV_date")], by = "I_ID") %>% 
+  mutate(Days_from_Q = as.numeric(difftime(as.Date(N_date), as.Date(CAV_date), unit="days"))) %>% 
+  group_by(I_ID) %>% 
+  # take cognitive test value at date closest to Q_date
+  arrange(I_ID, abs(Days_from_Q))%>% 
+  mutate(Z_MEM = Z_MEM[1L],
+         Z_EXEC = Z_EXEC[1L],
+         N_date_domains = as.Date(N_date[1L])) %>% 
+  filter(row_number() == 1) %>% 
+  ungroup()
+```
+
+
+```{r}
+
+# Add cognitive tests to data (skip N_date_domains because it's same as N_date added also here)
+dat <- dat %>%
+  left_join(., distinct(dat_cog[,c("I_ID", "N_15WTui", "N_TMTBt", "N_date")]), by="I_ID") %>%
+  left_join(., distinct(dat_cog_domains[,c("I_ID", "Z_MEM", "Z_EXEC")]), by="I_ID")
+
+```
+
+
+
+
+### Diagnosis cleanup
+
+- First, create a new diagnosis column, diagnoseOms_Q, with the diagnosis closest in time to the questionnaire date (CAV_date).
+
+- Then, if diagnoseOms_Q is "Uitgestelde diagnose", TAKE CLOSEST TO THE QUESTIONNAIRE DATA THAT IS NOT UITGESTEELD , take next available. Another option would be to take the last diagnosis from the longitudinal file, this assumes the last diagnosis should get closest to the most accurate diagnosis (given they take into account past visits too). For now, using 1st option, closest diagnosis in time. 
+
+- Also save the time between the questionnaire and when diagnosis was made as D_Q_date
+
+
+```{r}
+
+# Add baseline diagnosis data and rename variables
+dat_longdiag <- dat_longdiag %>%
+  rename(D_dat_long = D_dat,
+         diagnoseOms_long = diagnoseOms) %>% 
+  left_join(., dat[,c("I_ID", "D_dat", "diagnoseOms", "CAV_date")], by = "I_ID") %>% 
+  rename(D_dat_bl = D_dat,
+         diagnoseOms_bl = diagnoseOms) %>% 
+  mutate(Days_from_bl = as.numeric(difftime(as.Date(D_dat_long), as.Date(D_dat_bl), unit="days")),
+         Days_from_Q = as.numeric(difftime(as.Date(D_dat_long), as.Date(CAV_date), unit="days"))) %>% 
+  group_by(I_ID) %>% 
+  # First, find diagnosis closest in time to the questionnaire date
+  arrange(I_ID, abs(Days_from_Q))%>% 
+  mutate(diagnoseOms_Q = diagnoseOms_long[1L],
+         D_Q_date = D_dat_long[1L]) %>% 
+  # Second, for those that are still uitgesteeld, take last diagnosis they have (assuming this should get closest to most accurate diagnosis)
+  # arrange(I_ID, Days_from_Q)%>%
+  # mutate(diagnoseOms_Q = if_else(diagnoseOms_Q == "Uitgestelde diagnose", diagnoseOms_long[row_number()==n()],  diagnoseOms_Q),
+  #        D_Q_date = if_else(diagnoseOms_Q == "Uitgestelde diagnose", D_dat_long[row_number()==n()],  D_Q_date)
+  #        ) %>% 
+  # #
+  # Second, for those that are still uitgesteeld, take next diagnosis (after CAV date) that is not uitgesteeld
+  # add a col with number of different diagnoses per patient
+  mutate(N_obs = length(unique(diagnoseOms_long)), .after=I_ID) %>% 
+  # filter out "Uitgestelde diagnose" longitudinal observations for those that have at least two different diagnoses 
+  filter( !(N_obs > 1 &  diagnoseOms_long == "Uitgestelde diagnose"))%>%
+  # filter out diagnoses before CAV_date for those that need replacement (since I want to only take those made after CAV_date)
+  filter(!(Days_from_Q < 0 & diagnoseOms_Q == "Uitgestelde diagnose")) %>%  
+  arrange(I_ID, Days_from_Q) %>% 
+  mutate(Index = if_else(diagnoseOms_Q == "Uitgestelde diagnose", "replaced with after",  NA_character_), .after=diagnoseOms_Q) %>% 
+  mutate(D_Q_date = if_else(diagnoseOms_Q == "Uitgestelde diagnose", D_dat_long[1L],  D_Q_date),  # set date before modifying diagnoseOms_Q!
+         diagnoseOms_Q = if_else(diagnoseOms_Q == "Uitgestelde diagnose", diagnoseOms_long[1L], diagnoseOms_Q)) %>% 
+  ungroup()
+
+
+# Add diagnosis to data
+dat <- dat %>% 
+  left_join(., distinct(dat_longdiag[,c("I_ID", "diagnoseOms_Q", "D_Q_date")]), by="I_ID")
+
+
+# Diagnostic messages
+message(paste(length(which(dat$diagnoseOms == "Uitgestelde diagnose"))-length(which(dat$diagnoseOms_Q == "Uitgestelde diagnose")),
+            "out of",
+            length(which(dat$diagnoseOms == "Uitgestelde diagnose")),
+            "postponed diagnoses replaced.")
+        )
+message("")
+message(paste(length(which(dat$diagnoseOms != dat$diagnoseOms_Q)),
+            "subjects with a different diagnosis at time of questionnaire compared to baseline.")
+        )
+message("")
+message(paste(length(which(dat$diagnoseOms_Q == "Uitgestelde diagnose")),
+            "subjects remain with Uitgestelde diagnose."))
+
+```
+
+
+Group diagnoses:
+
+- set all AD cases to AD
+- set Neurologie anders to Other- Neurology
+- set Psychiatrie cases to 'Other - Psychiatry
+- set 'subjectieve klachten' to 'SCD'
+- Set CBD and PSP to 'movement disorders'
+- set the other diagnoses from 'dementie anders' to 'other'
+
+- What to do with remaining 69 individuals with Uitgesteelde diagnosis? 
+--> Set Uigesteelde diagnosis and NULL values (that were grabbed from the longdiag file) to NA
+
+
+
+```{r}
+
+dat <- dat %>% 
+  # make Uitgesteelde and NULL at time of questionnaire NA
+  mutate(diagnoseOms_Q = if_else(diagnoseOms_Q %in% c("Uitgestelde diagnose", "NULL"), NA_character_, diagnoseOms_Q)) %>% 
+  # Group diagnoses 
+  mutate(D_Q_grouped = case_when(diagnoseOms_Q == "Possible AD" | diagnoseOms_Q == "Probable AD" ~ "AD",
+                                 diagnoseOms_Q == "Subjectieve klachten" ~ "SCD",
+                                 diagnoseOms_Q == "Neurologie anders" ~ "Neuro - other",
+                                 diagnoseOms_Q == "Psychiatrie" ~ "Psych",
+                                 diagnoseOms_Q == "Dementie anders" & stringr::str_detect(D_txt, pattern = "(?i)\\bcbd\\b") ~ "MovD",
+                                 diagnoseOms_Q == "Dementie anders" & stringr::str_detect(D_txt, pattern = "(?i)\\bpsp\\b") ~ "MovD",
+                                 diagnoseOms_Q == "Dementie anders" ~ "Dem - other",
+                                 TRUE ~ diagnoseOms_Q), .after="diagnoseOms_Q") %>% 
+  drop_na(D_Q_grouped)
+
+
+table(dat$D_Q_grouped)
+
+```
+
+
+## Calculate CAV and FAV scores
+
+
+```{r}
+
+# Calculate CAV scores as the AVERAGE of the items
+dat <- dat %>% 
+  mutate(CAV_lifetime = rowMeans(across(paste("CAV_", c(1:25), sep=""))), .after=n_CAV) %>% 
+  mutate(CAV_past = rowMeans(across(paste("CAV_", c(1:20), sep=""))), .after=n_CAV) %>% 
+  mutate(CAV_current = rowMeans(across(paste("CAV_", c(21:25), sep=""))), .after=n_CAV)
+
+```
+
+
+Check Likert scale numbers for FAV items
+
+```{r}
+dat %>% 
+  select(starts_with("FAV_")) %>% 
+  psych::describe()
+```
+
+
+```{r}
+# Parse numbers from strings in FAV_10A
+dat <- dat %>% 
+  mutate(FAV_10A = as.numeric(readr::parse_number(FAV_10A), .after=FAV_10A))
+
+
+# Clean questions 2 to 6
+# If the main question == 1, set the secondary question to 0, otherwise leave as it.
+# If the main question is NA, leave secondary as is (could be NA but could be also answered)
+dat <- dat %>% 
+  mutate(FAV_2A = if_else(FAV_2 == 1, 0, FAV_2A, missing = FAV_2A),
+         FAV_3B = if_else(FAV_3 == 1, 0, FAV_3B, missing = FAV_3B),
+         FAV_4B = if_else(FAV_4 == 1, 0, FAV_4B, missing = FAV_4B),
+         FAV_5B = if_else(FAV_5 == 1, 0, FAV_5B, missing = FAV_5B),
+         FAV_6B = if_else(FAV_6 == 1, 0, FAV_6B, missing = FAV_6B)
+         )
+
+
+# Clean question 10
+
+# If FAV_10 = 1 but FAV_10A and B>1 , then change FAV_10 value to 2
+# If FAV_10 = 1, the score will be 0, but set FAV_10A to 0 and FAV_10B to 1 (so they are not NA) (Important to do it after previous operation!)
+
+dat <- dat %>% 
+  mutate(FAV_10 = if_else(FAV_10 == 1 & !is.na(FAV_10A) & FAV_10B >1, 2, FAV_10, missing = FAV_10)) %>% 
+  mutate(FAV_10A = if_else(FAV_10 == 1, 0, FAV_10A),
+         FAV_10B = if_else(FAV_10 == 1, 1, FAV_10B)
+         )
+
+```
+
+
+```{r}
+
+# Calculate FAV scores
+
+# Recode items
+dat <- dat %>% 
+  mutate(FAV_2 = as.numeric(recode(FAV_2, '1'='0', '2'='1.5', '3'='3.5', '4'='6')),
+         FAV_3 = as.numeric(recode(FAV_3, '1'='0', '2'='1.5', '3'='3.5', '4'='6')),
+         FAV_4 = as.numeric(recode(FAV_4, '1'='0', '2'='1.5', '3'='3.5', '4'='6')),
+         FAV_5 = as.numeric(recode(FAV_5, '1'='0', '2'='1.5', '3'='3.5', '4'='6')),
+         FAV_6 = as.numeric(recode(FAV_6, '1'='0', '2'='1.5', '3'='3.5', '4'='6'))
+  ) %>% 
+  mutate(FAV_2A = as.numeric(recode(FAV_2A, '0'='0', '1'='0.5', '2'='1.5', '3'='3', '4'='5')),
+         FAV_3B = as.numeric(recode(FAV_3B, '0'='0', '1'='0.5', '2'='1.5', '3'='3', '4'='5')),
+         FAV_4B = as.numeric(recode(FAV_4B, '0'='0', '1'='0.5', '2'='1.5', '3'='3', '4'='5')),
+         FAV_5B = as.numeric(recode(FAV_5B, '0'='0', '1'='0.5', '2'='1.5', '3'='3', '4'='5')),
+         FAV_6B = as.numeric(recode(FAV_6B, '0'='0', '1'='0.5', '2'='1.5', '3'='3', '4'='5'))
+  ) %>% 
+  mutate(Q2 = round(FAV_2 * FAV_2A/7, digits = 2), .after=FAV_2A) %>% 
+  mutate(Q3 = round(FAV_3 * FAV_3B/7, digits = 2), .after=FAV_3B) %>% 
+  mutate(Q4 = round(FAV_4 * FAV_4B/7, digits = 2), .after=FAV_4B) %>% 
+  mutate(Q5 = round(FAV_5 * FAV_5B/7, digits = 2), .after=FAV_5B) %>% 
+  mutate(Q6 = round(FAV_6 * FAV_6B/7, digits = 2), .after=FAV_6B) %>%
+  mutate(Q7 = as.numeric(recode(FAV_7,   '1'='0', '2'='1')), .after=FAV_7) %>% 
+  mutate(Q8 = as.numeric(recode(FAV_8,   '1'='0', '2'='1')), .after=FAV_8) %>% 
+  mutate(Q9A = as.numeric(recode(FAV_9A, '1'='0', '2'='1')), .after=FAV_9A) %>% 
+  mutate(Q9B = as.numeric(recode(FAV_9B, '1'='0', '2'='1')), .after=FAV_9B) %>% 
+  mutate(Q9C = as.numeric(recode(FAV_9C, '1'='0', '2'='1')), .after=FAV_9C) %>% 
+  mutate(Q9D = as.numeric(recode(FAV_9D, '1'='0', '2'='1')), .after=FAV_9D) %>% 
+  mutate(Q10 = case_when(FAV_10 == 1 | FAV_10B == 1 ~ 0,
+                         FAV_10B > 1 ~ FAV_10A/7,
+                         TRUE ~ NA_real_),  .after=FAV_10B) %>% 
+  mutate(Q10 = round(Q10, digits = 2))
+
+
+# Calculate the total score
+dat <- dat %>% 
+  mutate(FAV_total = 20*Q2 + 21 *Q3 + 23*(Q4 + Q5) + 30*Q6 + 25*(Q7 + Q8) + 30*Q9A + 36*Q9B + 20*Q9C + 35*Q9D + 21*Q10, .after=n_FAV)
+
+
+```
+
+
+```{r}
+# # out of curiosity, what's the maximum FAV score possible?
+# Q2 = 4.29
+# Q3 = 4.29
+# Q4 = 4.29
+# Q5 = 4.29
+# Q6 = 4.29
+# 
+# Q7 = 1
+# Q8 = 1
+# Q9A = 1
+# Q9B = 1
+# Q9C = 1
+# Q9D = 1
+#   
+# Q10 = 72/7
+# 
+# FAV_max = 20*Q2 + 21 *Q3 + 23*(Q4 + Q5) + 30*Q6 + 25*(Q7 + Q8) + 30*Q9A + 36*Q9B + 20*Q9C + 35*Q9D + 21*Q10
+# 
+# # FAV_max = 888
+
+```
+
+
+
+## Response rate
+
+Filter those with complete missing for both CAV and FAV
+Note: this step should be after replacing impossible values with NAs and after cleaning FAV
+
+
+```{r Response rate}
+CAV_item_names <- paste("CAV_", c(1:25),  sep="")
+
+FAV_Qitem_names <- c("Q2", "Q3", "Q4", "Q5", "Q6", "Q7", "Q8", "Q9A", "Q9B", "Q9C", "Q9D", "Q10")
+          
+FAV_Fitem_names <- c("FAV_2", "FAV_2A", "FAV_3", "FAV_3B", "FAV_4", "FAV_4B", "FAV_5", "FAV_5B", "FAV_6", 
+         "FAV_6B", "FAV_7", "FAV_8", "FAV_9A", "FAV_9B", "FAV_9C", "FAV_9D", "FAV_10", "FAV_10A", "FAV_10B")
+              
+dat <- dat %>% 
+  mutate(CAV_response_rate = 1-(rowSums(is.na(across(all_of(CAV_item_names)))/length(CAV_item_names))), .before=CAV_1) %>% 
+  mutate(FAV_response_rate = 1-(rowSums(is.na(across(all_of(FAV_Qitem_names)))/length(FAV_Qitem_names))), .before=FAV_1)
+
+```
+
+
+
+
+```{r }
+# exclude individuals with 0 response rate for both CAV and FAV
+dat <- dat %>%
+  filter(!(CAV_response_rate == 0 & FAV_response_rate == 0))
+
+length(unique(dat$I_ID))
+
+```
+
+
+
+## Save data for the MRI cleanup 
+MRI is first cleaned up in a different script, and for the harmonization I need some biological variables and cleaned up diagnosis. 
+
+
+```{r}
+# Save demographic variables for mri harmonization step
+# dat %>% 
+#   select(I_ID, I_sex, I_age_1, D_Q_grouped) %>% 
+#   write.csv(., here("data", "interim", "data_all_atQbaseline_for_MRI_harmonization.csv"), row.names = F)
+
+```
+
+
+
+
+## Bring in MRI data
+
+```{r}
+
+# Load the harmonized MRI file with composite regions
+dat_mri <- read.csv(here("data", "interim", "MRI_harmonized_ROIs.csv"))
+
+
+
+# this data contains more than one scan for each individual, remove fully missing observtions if any and take scan closest to CAV_date
+dat_mri <- dat_mri %>%
+  left_join(., dat[,c("I_ID", "CAV_date")], by="I_ID") %>%
+  mutate(MRI_CAV_days = as.numeric(difftime(as.Date(scan_date), as.Date(CAV_date), unit="days")), .after=scan_date) %>%
+  group_by(I_ID) %>%
+  # take scan at date closest to Q_date
+  arrange(I_ID, abs(MRI_CAV_days))%>%
+  filter(row_number() == 1) %>%
+  ungroup() %>%
+  select(-MRI_CAV_days, -CAV_date)
+
+#length(unique(dat_mri$I_ID))
+
+
+dat <- left_join(dat, dat_mri[,c("I_ID", "MRI_ID", "scan_date", 
+                                 "ADsign_thick_unweighted", "wholebrain_thick_weighted", "temporoparietal_thick_weighted"
+                                 #"frontal_thick_weighted", "temporal_thick_weighted", "parietal_thick_weighted", "occipital_thick_weighted"
+                                 )], by="I_ID")
+```
+
+
+
+## Time from questionnaire
+
+Gap between CAV and FAV
+
+```{r}
+# calculate and have a look at the gap between CAV and FAV
+dat <- dat %>% 
+  mutate(D_Q_date = as.Date(D_Q_date)) %>% 
+  mutate(CAV_days_from_FAV = as.numeric(difftime(FAV_date, CAV_date, unit="days"))) 
+
+```
+
+
+Since we've decided to move forward with CAV_date as questionnaire date (disregarding the ones with a gap between CAV and FAV), use the FAV_Date for those that are missing CAV_date
+
+
+```{r}
+dat <- dat %>% 
+  mutate(CAV_date = if_else(is.na(CAV_date), FAV_date, CAV_date))
+
+```
+
+
+```{r}
+# Calculate time from Questionnaire to MMSE date (at q) and to N_date, and to MRI
+dat <- dat %>%
+  mutate(CAV_days_from_diag = as.numeric(difftime(D_Q_date,CAV_date, unit="days"))) %>% 
+  mutate(CAV_days_from_bl = as.numeric(difftime(I_dat_1, CAV_date, unit="days"))) %>% 
+  mutate(CAV_days_from_MMSE_q = as.numeric(difftime(MMSE_q_date, CAV_date, unit="days")), 
+         CAV_days_from_N_q = as.numeric(difftime(N_date, CAV_date, unit="days")),
+         CAV_days_from_MRI_scan = as.numeric(difftime(scan_date, CAV_date, unit="days"))) %>% 
+  mutate(FAV_days_from_MMSE_q = as.numeric(difftime(MMSE_q_date, FAV_date, unit="days")), 
+         FAV_days_from_N_q = as.numeric(difftime(N_date, FAV_date, unit="days")),
+         FAV_days_from_MRI_scan = as.numeric(difftime(scan_date, FAV_date, unit="days")))
+
+```
+
+
+```{r}
+# reorder dataset
+dat <- dat %>% 
+  select("I_ID", "D_Q_grouped", 
+         
+         "CAV_date", "FAV_date", "CAV_days_from_FAV", "I_dat_1", "CAV_days_from_bl", 
+         "D_Q_date", "CAV_days_from_diag", 
+         "MMSE_q_date", "CAV_days_from_MMSE_q", 
+         "N_date", "CAV_days_from_N_q",
+         "MRI_date", "scan_date", "CAV_days_from_MRI_scan", 
+         
+         "I_sex", "I_age_1", "I_edu_VE", "A_positive", "APOE", "MMSE_q", "N_15WTui", "N_TMTBt", "Z_MEM", "Z_EXEC",
+         
+         "ADsign_thick_unweighted","wholebrain_thick_weighted", "temporoparietal_thick_weighted",
+
+         "CAV_source", "CAV_response_rate", "CAV_current", "CAV_past", "CAV_lifetime", 
+         "FAV_source", "FAV_response_rate", "FAV_total",
+         
+         "CAV_1", "CAV_2", "CAV_3", "CAV_4", "CAV_5", "CAV_6", "CAV_7", "CAV_8", "CAV_9", "CAV_10", "CAV_11", "CAV_12", "CAV_13", 
+         "CAV_14", "CAV_15", "CAV_16", "CAV_17", "CAV_18", "CAV_19", "CAV_20", "CAV_21", "CAV_22", "CAV_23", "CAV_24", "CAV_25", 
+         
+         "FAV_1", "FAV_1B", "FAV_2", "FAV_2A", "Q2", "FAV_3", "FAV_3B", "Q3", "FAV_4", "FAV_4B", "Q4", "FAV_5", "FAV_5B", 
+         "Q5", "FAV_6", "FAV_6B", "Q6", "FAV_7", "Q7", "FAV_8", "Q8", "FAV_9A", "Q9A", "FAV_9B", 
+         "Q9B", "FAV_9C", "Q9C", "FAV_9D", "Q9D", "FAV_10", "FAV_10A", "FAV_10B","Q10",
+         
+         "I_die", "I_die_da", "I_die_age", "I_live", 
+         
+         "V_dat", "V_age", "V_CAMCOG", "V_FAB", "V_GDS", "V_CDR", "V_IADL", "D_diag", "diagnoseOms", "diagnoseOms_Q", "D_dat", 
+         "D_txt", "D_age_diag", "D_diag_AD", "DiagnoseADOms", "D_diag_FTD", "DiagnoseFTDOms", "MRI_ID", "M_age", "M_scan", 
+         "M_quality", "MR_txt", "M_MTA_R", "M_MTA_L", "M_atrofy", "M_parietal_L", "M_parietal_R", "M_Fazekas", "M_lacune", 
+         "M_sprf_sider", "M_txt_ra", "M_mbl_to", "M_inf_jn", "L_DATEAFN", "L_AB42_corr", "L_TAU", "L_PTAU", "L_AB42_Elecsys", 
+         "L_TAU_Elecsys", "L_PTAU_Elecsys", "CSF_A", "CSF_T", "CSF_N", "PT_date", "PT_result_amyloid", "I_ethnicity", 
+         "n_CAV","n_FAV", "CAV_alleen_samen", "FAV_alleen_samen",
+         
+         "FAV_days_from_bl", "FAV_days_from_MMSE_q", "FAV_days_from_N_q", "FAV_days_from_MRI_scan"
+         )
+
+```
+
+
+
+A lot of people have a wide gap between CAV and baseline but not with diagnosis/cognition/mri
+```{r}
+# how many people have a gap between CAV and baseline wider than a year  --> 273
+# dat %>%
+#   filter(CAV_days_from_bl < -365 | CAV_days_from_bl > 365)
+
+
+# # how may people have a gap between CAV and diagnosis date wider than a year  --> 140
+# dat %>%
+#   filter(CAV_days_from_diag < -365 | CAV_days_from_diag > 365)
+# 
+# # What is median + IQR time gap of these individuals? 
+# wide_gap <- dat %>%
+#   filter(CAV_days_from_diag < -365 | CAV_days_from_diag > 365)
+# mean(abs(wide_gap$CAV_days_from_diag)/365)
+# median(abs(wide_gap$CAV_days_from_diag)/365)
+# sd(abs(wide_gap$CAV_days_from_diag)/365)
+# IQR(abs(wide_gap$CAV_days_from_diag)/365)
+
+# # how may people have a gap between CAV and MMSE date wider than a year  --> 25
+# dat %>%
+#   filter(CAV_days_from_MMSE_q < -365 | CAV_days_from_MMSE_q > 365)
+
+ 
+# # how may people have a gap between CAV and MMSE date wider than half a year  --> 55
+# dat %>%
+#   filter(CAV_days_from_MMSE_q < -365/2 | CAV_days_from_MMSE_q > 365/2)
+# 
+
+
+# # how may people have a gap between CAV and MMSE date wider than a year and a half  --> 10
+# dat %>%
+#   filter(CAV_days_from_MMSE_q < -547 | CAV_days_from_MMSE_q > 547)
+
+
+# # how may people have a gap between CAV and NPO date wider than a year  --> 39
+# dat %>%
+#   filter(CAV_days_from_N_q < -365 | CAV_days_from_N_q > 365)
+
+
+# # how may people have a gap between CAV and MRI date wider than a year  --> 284
+# dat %>%
+#   filter(CAV_days_from_MRI_scan < -365 | CAV_days_from_MRI_scan > 365)
+
+
+
+```
+
+
+
+# Set to missing values based on time gap
+
+```{r}
+# Set cognition scores that are longer than 1 year apart to missing (they are anyways missings across these variables)
+
+dat <- dat %>% 
+  mutate(MMSE_q   = if_else((CAV_days_from_MMSE_q < -365 | CAV_days_from_MMSE_q > 365), NA, MMSE_q),
+         N_15WTui = if_else((CAV_days_from_N_q < -365 | CAV_days_from_N_q > 365), NA, N_15WTui),
+         N_TMTBt  = if_else((CAV_days_from_N_q < -365 | CAV_days_from_N_q > 365), NA, N_TMTBt),
+         Z_MEM    = if_else((CAV_days_from_N_q < -365 | CAV_days_from_N_q > 365), NA, Z_MEM),
+         Z_EXEC   = if_else((CAV_days_from_N_q < -365 | CAV_days_from_N_q > 365), NA, Z_EXEC)
+  ) 
+
+```
+
+
+
+## Age: calculate based on I_dat_1
+
+Recalculate age as I_age + CAV_days_from_bl to get age at the questionnaire date
+```{r}
+
+dat <- dat %>% 
+  mutate(I_age_q = ceiling(I_age_1 - CAV_days_from_bl/365), .after=I_age_1)
+
+```
+
+
+## Save final cleaned up dataset
+
+```{r}
+# Save processed dataset - all participants
+write.csv(dat, here("data","processed", "data_all_atQbaseline.csv"), row.names = F)
+```
+
+
+## AD cont
+
+```{r}
+# Save AD continuum participants for part 2 and 3
+dat_ADcont <- dat %>% 
+  mutate(ADcont = if_else(D_Q_grouped %in% c("SCD", "MCI", "AD") & A_positive == "A+", 1, 0),
+         MRI_available = if_else(is.na(temporoparietal_thick_weighted), 0, 1)) %>%
+  filter(ADcont == 1)
+
+# NUmber of missing MRI scans per diagnosis
+table(dat_ADcont$D_Q_grouped, dat_ADcont$MRI_available)
+
+```
+
+
+```{r}
+# # how may people have a gap between CAV and MMSE date wider than a year  --> 14
+# dat_ADcont %>%
+#   filter(CAV_days_from_MMSE_q < -365 | CAV_days_from_MMSE_q > 365)
+# 
+# 
+# # how may people have a gap between CAV and MMSE date wider than half a year  --> 23
+# dat_ADcont %>%
+#   filter(CAV_days_from_MMSE_q < -365/2 | CAV_days_from_MMSE_q > 365/2)
+# 
+# 
+# # how may people have a gap between CAV and MMSE date wider than a year and a half  --> 5
+# dat_ADcont %>%
+#   filter(CAV_days_from_MMSE_q < -547 | CAV_days_from_MMSE_q > 547)
+# 
+# 
+# # how may people have a gap between CAV and NPO date wider than a year  --> 22
+# dat_ADcont %>%
+#   filter(CAV_days_from_N_q < -365 | CAV_days_from_N_q > 365)
+# 
+# 
+# # how may people have a gap between CAV and MRI date wider than a year  --> 155
+# dat_ADcont %>%
+#   filter(CAV_days_from_MRI_scan < -365 | CAV_days_from_MRI_scan > 365)
+# 
+# # how may people have a gap between CAV and MRI date wider than half a year  --> 181
+# dat_ADcont %>%
+#   filter(CAV_days_from_MRI_scan < -365/2 | CAV_days_from_MRI_scan > 365/2)
+
+```
+
+
+```{r}
+# Set MRI values that are longer than 1 year apart from the Questionnaires date to missing and exclude them
+dat_ADcont <- dat_ADcont %>% 
+  mutate(temporoparietal_thick_weighted = if_else((CAV_days_from_MRI_scan < -365 | CAV_days_from_MRI_scan > 365), NA,temporoparietal_thick_weighted)
+  ) %>% 
+  drop_na(temporoparietal_thick_weighted)
+
+dim(dat_ADcont)[1]
+table(dat_ADcont$D_Q_grouped, dat_ADcont$MRI_available)
+
+```
+
+904 individuals!
+
+
+```{r}
+
+write.csv(dat_ADcont, here("data","processed", "data_ADcont_atQbaseline.csv"), row.names = F)
+
+```
+
+

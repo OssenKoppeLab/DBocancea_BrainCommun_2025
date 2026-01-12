@@ -1,0 +1,181 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+
+```{r}
+
+library(tidyverse)
+library(here)
+
+library(survival)
+library(psfmi)
+
+```
+
+
+```{r}
+
+# Load median dataset
+datmedian <- readRDS(file = here("data", "processed", "Part3_ADcont_dat_median.rds"))
+
+
+datmedian <- datmedian %>% 
+  mutate(CAV_lifetime_split = as.factor(if_else(CAV_lifetime < median(CAV_lifetime), 0, 1)),
+         CAV_past_split     = if_else(CAV_past < median(CAV_past), 0, 1),
+         CAV_current_split  = if_else(CAV_current < median(CAV_current), 0, 1),
+         FAV_split          = if_else(FAV < median(FAV), 0, 1)
+         )
+
+
+datmedian_SCD <- datmedian %>% 
+  filter(Diagnosis == "SCD")
+
+datmedian_MCI <- datmedian %>% 
+  filter(Diagnosis == "MCI")
+
+datmedian_AD <- datmedian %>% 
+  filter(Diagnosis == "AD")
+
+```
+
+
+
+
+```{r}
+datmedian_MCI %>% filter(Died == 1) %>% select(I_ID, Age, Sex, Edu_tert, Diagnosis, Conv, D_conv, MMSEq, TP_thick, Time_mort, CAV_lifetime_split, CAV_past_split)
+
+
+table(datmedian_MCI$Died, datmedian_MCI$Conv)
+
+```
+
+
+39 of MCI died
+Of these, 19 died as MCI, 20 converted to an AD diagnosis before death (so half, half)
+
+
+```{r}
+
+ggplot(datmedian_MCI, aes(x = factor(Died), y = CAV_past)) +
+  geom_boxplot() +
+  labs(
+    x = "Mortality Status (0 = Alive, 1 = Died)",
+    y = "CAV Past Score",
+    title = "CAV Past vs Mortality Status"
+  ) +
+  theme_minimal()
+
+datmedian_MCI %>% 
+  mutate(Died_bin = as.factor(Died)) %>% 
+ggplot(., aes(x = CAV_past, y = Time_mort, colour=Died_bin)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    x = "CAV Past Score",
+    y = "Time to Death / censoring date",
+    title = "Relationship Between CAV Past and Time to Death"
+  ) +
+  theme_minimal()
+
+
+```
+
+
+Influential point? 
+I_ID 8452 --> very short time to death, rather, censoring date, because they don't die, and they have a very large CAV_past score
+
+
+```{r}
+
+# Load mids objects (with longitudinal cognition)
+datmids <- readRDS(file = here("data", "processed", "Part3_ADcont_datmids.rds"))
+
+datimp <- complete(datmids, action="long", include = FALSE) %>% 
+  mutate(Sex_num = as.numeric(Sex), .after=Sex)
+
+# subset data to use in cox models
+datimp_cox <- datimp %>% 
+  select(.imp, .id, I_ID, Time_mort, Died, TP_thick_s, Age_s, Sex_num, Edu_tert, CAV_lifetime_s, CAV_past_s, CAV_current_s, FAV_s) %>% 
+  # convert the Edu_tert to numeric (psfmi_coxr function doesn't work with categorical variables)
+  mutate(Edu_tert = as.numeric(Edu_tert))
+
+
+# create strata datasets (needs to be done like this because the psfmi_coxr function doesn't like categorical data)
+#datimp_cox_SCD <- datimp_cox[datimp$Diagnosis == "SCD",]
+datimp_cox_MCI <- datimp_cox[datimp$Diagnosis == "MCI",]
+#datimp_cox_AD  <- datimp_cox[datimp$Diagnosis == "AD",]
+
+
+```
+
+
+```{r}
+# CAV_past
+cox_CAV_past_main_s <- psfmi_coxr(data=datimp_cox_MCI, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_mort, Died) ~ TP_thick_s + CAV_past_s + Age_s + Sex_num + Edu_tert, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+data.frame(cox_CAV_past_main_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+```
+
+
+
+```{r}
+# Completely unadjusted
+cox_CAV_past_main_s <- psfmi_coxr(data=datimp_cox_MCI, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_mort, Died) ~ CAV_past_s, 
+                                       p.crit=1, method="RR", direction = "BW")
+data.frame(cox_CAV_past_main_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+
+
+# Adjusted for age
+cox_CAV_past_main_s <- psfmi_coxr(data=datimp_cox_MCI, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_mort, Died) ~ CAV_past_s + Age_s,
+                                       p.crit=1, method="RR", direction = "BW")
+data.frame(cox_CAV_past_main_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+
+
+# Adjusted for age, sex
+cox_CAV_past_main_s <- psfmi_coxr(data=datimp_cox_MCI, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_mort, Died) ~ CAV_past_s + Age_s + Sex_num, 
+                                       p.crit=1, method="RR", direction = "BW")
+data.frame(cox_CAV_past_main_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+
+
+# Adjusted for age, sex, Edu_tert
+cox_CAV_past_main_s <- psfmi_coxr(data=datimp_cox_MCI, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_mort, Died) ~ CAV_past_s + Age_s + Sex_num + Edu_tert, 
+                                       p.crit=1, method="RR", direction = "BW")
+data.frame(cox_CAV_past_main_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+
+
+# Adjusted for age, sex, Edu_tert,  TP_thick_s
+cox_CAV_past_main_s <- psfmi_coxr(data=datimp_cox_MCI, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_mort, Died) ~ CAV_past_s + Age_s + Sex_num + Edu_tert + TP_thick_s, 
+                                       p.crit=1, method="RR", direction = "BW")
+data.frame(cox_CAV_past_main_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+```
+
+```{r}
+
+# remove the possibly influential data point
+
+datimp_cox_MCI2 <- datimp_cox_MCI %>% filter(I_ID != 8452)
+
+cox_CAV_past_main_s <- psfmi_coxr(data=datimp_cox_MCI2, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_mort, Died) ~ TP_thick_s + CAV_past_s + Age_s + Sex_num + Edu_tert, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+data.frame(cox_CAV_past_main_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+```
+

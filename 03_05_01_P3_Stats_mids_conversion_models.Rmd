@@ -1,0 +1,486 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+
+library(tidyverse)
+library(here)
+
+
+library(survival)
+library(psfmi)
+
+results_folder = "results/3_mortality/models/conversion_models"
+if (!dir.exists(here(results_folder))) {dir.create(here(results_folder))}  #create folder if it doesn't exist
+
+```
+
+
+
+## Conversion models
+
+### Data
+
+```{r}
+# Load mids objects
+datmids <- readRDS(file = here("data", "processed", "Part3_ADcont_datmids.rds"))
+
+datimp <- complete(datmids, action="long", include = FALSE) %>% 
+  mutate(Sex_num = as.numeric(Sex), .after=Sex)
+
+# subset data to use in cox models
+datimp_cox <- datimp %>% 
+  filter(Diagnosis != "AD") %>% 
+  select(.imp, .id, I_ID, Time_conv, Conv, TP_thick_s, Age_s, Sex_num, CAV_lifetime_s, CAV_past_s, CAV_current_s, FAV_s)
+
+
+# create strata datasets (needs to be done like this because of the psfmi_coxr function doesn't like categorical like this)
+datimp_cox_SCD <- datimp %>% 
+  filter(Diagnosis == "SCD") %>% 
+  select(.imp, .id, I_ID, Time_conv, Conv, TP_thick_s, Age_s, Sex_num, CAV_lifetime_s, CAV_past_s, CAV_current_s, FAV_s)
+
+datimp_cox_MCI <- datimp %>% 
+  filter(Diagnosis == "MCI") %>% 
+  select(.imp, .id, I_ID, Time_conv, Conv, TP_thick_s, Age_s, Sex_num, CAV_lifetime_s, CAV_past_s, CAV_current_s, FAV_s)
+
+
+```
+
+### 1) - Run models
+
+#### All 
+
+```{r}
+
+# CAV_lifetime
+
+cox_CAV_lifetime_inter_s <- psfmi_coxr(data=datimp_cox, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_conv, Conv) ~ TP_thick_s*CAV_lifetime_s + Age_s + Sex_num, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+cox_CAV_lifetime_main_s <- psfmi_coxr(data=datimp_cox, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_conv, Conv) ~ TP_thick_s + CAV_lifetime_s + Age_s + Sex_num, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+inter_s <- data.frame(cox_CAV_lifetime_inter_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+main_s  <- data.frame(cox_CAV_lifetime_main_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+
+CAV_lifetime <- list("Mortality inter" = inter_s,
+                     "Mortality main"  = main_s) 
+
+openxlsx::write.xlsx(CAV_lifetime, here(results_folder, "cox_ALL_CAV_lifetime.xlsx"), asTable = F)
+
+```
+
+```{r}
+
+# CAV_past
+
+cox_CAV_past_inter_s <- psfmi_coxr(data=datimp_cox, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_conv, Conv) ~ TP_thick_s*CAV_past_s + Age_s + Sex_num, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+cox_CAV_past_main_s <- psfmi_coxr(data=datimp_cox, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_conv, Conv) ~ TP_thick_s + CAV_past_s + Age_s + Sex_num, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+
+inter_s <- data.frame(cox_CAV_past_inter_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+main_s  <- data.frame(cox_CAV_past_main_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+
+CAV_past <- list("Mortality inter" = inter_s,
+                     "Mortality main"  = main_s) 
+
+openxlsx::write.xlsx(CAV_past, here(results_folder, "cox_ALL_CAV_past.xlsx"), asTable = F)
+
+```
+
+```{r}
+
+# CAV_current
+
+cox_CAV_current_inter_s <- psfmi_coxr(data=datimp_cox, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_conv, Conv) ~ TP_thick_s*CAV_current_s + Age_s + Sex_num, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+cox_CAV_current_main_s <- psfmi_coxr(data=datimp_cox, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_conv, Conv) ~ TP_thick_s + CAV_current_s + Age_s + Sex_num, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+
+inter_s <- data.frame(cox_CAV_current_inter_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+main_s  <- data.frame(cox_CAV_current_main_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+
+CAV_current <- list("Mortality inter" = inter_s,
+                     "Mortality main"  = main_s) 
+
+openxlsx::write.xlsx(CAV_current, here(results_folder, "cox_ALL_CAV_current.xlsx"), asTable = F)
+
+```
+
+```{r}
+
+# FAV
+
+cox_FAV_inter_s <- psfmi_coxr(data=datimp_cox, nimp=40, impvar=".imp", 
+                              formula = Surv(Time_conv, Conv) ~ TP_thick_s*FAV_s + Age_s + Sex_num, 
+                              p.crit=1, method="RR", direction = "BW")
+
+cox_FAV_main_s <- psfmi_coxr(data=datimp_cox, nimp=40, impvar=".imp", 
+                             formula = Surv(Time_conv, Conv) ~ TP_thick_s + FAV_s + Age_s + Sex_num, 
+                             p.crit=1, method="RR", direction = "BW")
+
+
+inter_s <- data.frame(cox_FAV_inter_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+main_s  <- data.frame(cox_FAV_main_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+
+FAV <- list("Mortality inter" = inter_s,
+            "Mortality main"  = main_s) 
+
+openxlsx::write.xlsx(FAV, here(results_folder, "cox_ALL_FAV.xlsx"), asTable = F)
+
+```
+
+
+#### SCD
+
+```{r}
+
+# CAV_lifetime
+
+cox_CAV_lifetime_inter_s <- psfmi_coxr(data=datimp_cox_SCD, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_conv, Conv) ~ TP_thick_s*CAV_lifetime_s + Age_s + Sex_num, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+cox_CAV_lifetime_main_s <- psfmi_coxr(data=datimp_cox_SCD, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_conv, Conv) ~ TP_thick_s + CAV_lifetime_s + Age_s + Sex_num, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+
+inter_s <- data.frame(cox_CAV_lifetime_inter_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+main_s  <- data.frame(cox_CAV_lifetime_main_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+
+CAV_lifetime_SCD <- list("Mortality inter" = inter_s,
+                     "Mortality main"  = main_s) 
+
+openxlsx::write.xlsx(CAV_lifetime_SCD, here(results_folder, "cox_SCD_CAV_lifetime.xlsx"), asTable = F)
+
+```
+
+```{r}
+
+# CAV_past
+
+cox_CAV_past_inter_s <- psfmi_coxr(data=datimp_cox_SCD, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_conv, Conv) ~ TP_thick_s*CAV_past_s + Age_s + Sex_num, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+cox_CAV_past_main_s <- psfmi_coxr(data=datimp_cox_SCD, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_conv, Conv) ~ TP_thick_s + CAV_past_s + Age_s + Sex_num, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+
+inter_s <- data.frame(cox_CAV_past_inter_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+main_s  <- data.frame(cox_CAV_past_main_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+
+CAV_past_SCD <- list("Mortality inter" = inter_s,
+                     "Mortality main"  = main_s) 
+
+openxlsx::write.xlsx(CAV_past_SCD, here(results_folder, "cox_SCD_CAV_past.xlsx"), asTable = F)
+
+```
+
+```{r}
+
+# CAV_current
+
+cox_CAV_current_inter_s <- psfmi_coxr(data=datimp_cox_SCD, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_conv, Conv) ~ TP_thick_s*CAV_current_s + Age_s + Sex_num, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+cox_CAV_current_main_s <- psfmi_coxr(data=datimp_cox_SCD, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_conv, Conv) ~ TP_thick_s + CAV_current_s + Age_s + Sex_num, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+
+inter_s <- data.frame(cox_CAV_current_inter_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+main_s  <- data.frame(cox_CAV_current_main_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+
+CAV_current_SCD <- list("Mortality inter" = inter_s,
+                     "Mortality main"  = main_s) 
+
+openxlsx::write.xlsx(CAV_current_SCD, here(results_folder, "cox_SCD_CAV_current.xlsx"), asTable = F)
+
+```
+
+```{r}
+
+# FAV
+
+cox_FAV_inter_s <- psfmi_coxr(data=datimp_cox_SCD, nimp=40, impvar=".imp", 
+                              formula = Surv(Time_conv, Conv) ~ TP_thick_s*FAV_s + Age_s + Sex_num, 
+                              p.crit=1, method="RR", direction = "BW")
+
+cox_FAV_main_s <- psfmi_coxr(data=datimp_cox_SCD, nimp=40, impvar=".imp", 
+                             formula = Surv(Time_conv, Conv) ~ TP_thick_s + FAV_s + Age_s + Sex_num, 
+                             p.crit=1, method="RR", direction = "BW")
+
+
+inter_s <- data.frame(cox_FAV_inter_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+main_s  <- data.frame(cox_FAV_main_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+
+FAV_SCD <- list("Mortality inter" = inter_s,
+            "Mortality main"  = main_s) 
+
+openxlsx::write.xlsx(FAV_SCD, here(results_folder, "cox_SCD_FAV.xlsx"), asTable = F)
+
+```
+
+
+#### MCI
+
+```{r}
+
+# CAV_lifetime
+
+cox_CAV_lifetime_inter_s <- psfmi_coxr(data=datimp_cox_MCI, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_conv, Conv) ~ TP_thick_s*CAV_lifetime_s + Age_s + Sex_num, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+cox_CAV_lifetime_main_s <- psfmi_coxr(data=datimp_cox_MCI, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_conv, Conv) ~ TP_thick_s + CAV_lifetime_s + Age_s + Sex_num, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+
+inter_s <- data.frame(cox_CAV_lifetime_inter_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+main_s  <- data.frame(cox_CAV_lifetime_main_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+
+CAV_lifetime_MCI <- list("Mortality inter" = inter_s,
+                     "Mortality main"  = main_s) 
+
+openxlsx::write.xlsx(CAV_lifetime_MCI, here(results_folder, "cox_MCI_CAV_lifetime.xlsx"), asTable = F)
+
+```
+
+```{r}
+
+# CAV_past
+
+cox_CAV_past_inter_s <- psfmi_coxr(data=datimp_cox_MCI, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_conv, Conv) ~ TP_thick_s*CAV_past_s + Age_s + Sex_num, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+cox_CAV_past_main_s <- psfmi_coxr(data=datimp_cox_MCI, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_conv, Conv) ~ TP_thick_s + CAV_past_s + Age_s + Sex_num, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+
+inter_s <- data.frame(cox_CAV_past_inter_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+main_s  <- data.frame(cox_CAV_past_main_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+
+CAV_past_MCI <- list("Mortality inter" = inter_s,
+                     "Mortality main"  = main_s) 
+
+openxlsx::write.xlsx(CAV_past_MCI, here(results_folder, "cox_MCI_CAV_past.xlsx"), asTable = F)
+
+```
+
+```{r}
+
+# CAV_current
+
+cox_CAV_current_inter_s <- psfmi_coxr(data=datimp_cox_MCI, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_conv, Conv) ~ TP_thick_s*CAV_current_s + Age_s + Sex_num, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+cox_CAV_current_main_s <- psfmi_coxr(data=datimp_cox_MCI, nimp=40, impvar=".imp", 
+                                       formula = Surv(Time_conv, Conv) ~ TP_thick_s + CAV_current_s + Age_s + Sex_num, 
+                                       p.crit=1, method="RR", direction = "BW")
+
+
+inter_s <- data.frame(cox_CAV_current_inter_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+main_s  <- data.frame(cox_CAV_current_main_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+
+CAV_current_MCI <- list("Mortality inter" = inter_s,
+                     "Mortality main"  = main_s) 
+
+openxlsx::write.xlsx(CAV_current_MCI, here(results_folder, "cox_MCI_CAV_current.xlsx"), asTable = F)
+
+```
+
+```{r}
+
+# FAV
+
+cox_FAV_inter_s <- psfmi_coxr(data=datimp_cox_MCI, nimp=40, impvar=".imp", 
+                              formula = Surv(Time_conv, Conv) ~ TP_thick_s*FAV_s + Age_s + Sex_num, 
+                              p.crit=1, method="RR", direction = "BW")
+
+cox_FAV_main_s <- psfmi_coxr(data=datimp_cox_MCI, nimp=40, impvar=".imp", 
+                             formula = Surv(Time_conv, Conv) ~ TP_thick_s + FAV_s + Age_s + Sex_num, 
+                             p.crit=1, method="RR", direction = "BW")
+
+
+inter_s <- data.frame(cox_FAV_inter_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+main_s  <- data.frame(cox_FAV_main_s$RR_model_final[[1]]) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+
+FAV_MCI <- list("Mortality inter" = inter_s,
+            "Mortality main"  = main_s) 
+
+openxlsx::write.xlsx(FAV_MCI, here(results_folder, "cox_MCI_FAV.xlsx"), asTable = F)
+
+```
+
+
+
+### Merge results
+
+Merge everything and select only the effects of interest (interaction, independent effect)
+
+```{r}
+
+inter <- rbind(CAV_lifetime$`Mortality inter`          %>% mutate(sample = "All", predictor="CAV_lifetime", .before=term), 
+               CAV_lifetime_SCD$`Mortality inter` %>% mutate(sample = "SCD", predictor="CAV_lifetime", .before=term),
+               CAV_lifetime_MCI$`Mortality inter` %>% mutate(sample = "MCI", predictor="CAV_lifetime", .before=term),
+               
+               CAV_past$`Mortality inter`     %>% mutate(sample = "All", predictor="CAV_past", .before=term), 
+               CAV_past_SCD$`Mortality inter` %>% mutate(sample = "SCD", predictor="CAV_past", .before=term),
+               CAV_past_MCI$`Mortality inter` %>% mutate(sample = "MCI", predictor="CAV_past", .before=term),
+               
+               CAV_current$`Mortality inter`     %>% mutate(sample = "All", predictor="CAV_current", .before=term), 
+               CAV_current_SCD$`Mortality inter` %>% mutate(sample = "SCD", predictor="CAV_current", .before=term),
+               CAV_current_MCI$`Mortality inter` %>% mutate(sample = "MCI", predictor="CAV_current", .before=term),
+               
+               FAV$`Mortality inter`     %>% mutate(sample = "All", predictor="FAV", .before=term), 
+               FAV_SCD$`Mortality inter` %>% mutate(sample = "SCD", predictor="FAV", .before=term),
+               FAV_MCI$`Mortality inter` %>% mutate(sample = "MCI", predictor="FAV", .before=term))
+
+
+main <- rbind(CAV_lifetime$`Mortality main`           %>% mutate(sample = "All", predictor="CAV_lifetime", .before=term), 
+              CAV_lifetime_SCD$`Mortality main` %>% mutate(sample = "SCD", predictor="CAV_lifetime", .before=term),
+              CAV_lifetime_MCI$`Mortality main` %>% mutate(sample = "MCI", predictor="CAV_lifetime", .before=term),
+
+              CAV_past$`Mortality main`     %>% mutate(sample = "All", predictor="CAV_past", .before=term), 
+              CAV_past_SCD$`Mortality main` %>% mutate(sample = "SCD", predictor="CAV_past", .before=term),
+              CAV_past_MCI$`Mortality main` %>% mutate(sample = "MCI", predictor="CAV_past", .before=term),
+
+              CAV_current$`Mortality main`     %>% mutate(sample = "All", predictor="CAV_current", .before=term), 
+              CAV_current_SCD$`Mortality main` %>% mutate(sample = "SCD", predictor="CAV_current", .before=term),
+              CAV_current_MCI$`Mortality main` %>% mutate(sample = "MCI", predictor="CAV_current", .before=term),
+
+              FAV$`Mortality main`     %>% mutate(sample = "All", predictor="FAV", .before=term), 
+              FAV_SCD$`Mortality main` %>% mutate(sample = "SCD", predictor="FAV", .before=term),
+              FAV_MCI$`Mortality main` %>% mutate(sample = "MCI", predictor="FAV", .before=term))
+
+
+all_results <- rbind(inter %>%  mutate(model = "inter"),
+                     main  %>%  mutate(model = "main") )
+
+
+saveRDS(all_results, file = here(results_folder, "conversion_all_models_results.RDS"))
+```
+
+
+
+
+### 2) - Export results
+
+#### 1) interaction and independent effect
+
+```{r}
+# Load pre-saved results 
+all_results <- readRDS(here(results_folder, "conversion_all_models_results.RDS"))
+
+# select effects of interest
+results <- all_results %>% 
+  filter( (model == "main" & term %in% c("CAV_lifetime_s", 
+                                         "CAV_past_s",      
+                                         "CAV_current_s",  
+                                         "FAV_s"))           |
+            (model == "inter" & term %in% c( "TP_thick_s:CAV_lifetime_s",
+                                             "TP_thick_s:CAV_past_s", 
+                                             "TP_thick_s:CAV_current_s", 
+                                             "TP_thick_s:FAV_s" ))
+  ) %>% 
+  select(sample, predictor, model, term, estimate, statistic, p.value, HR, lower.EXP, upper.EXP)
+  
+```
+
+
+##### FDR Adjust
+
+```{r}
+# Function to get stars corresponding to pvalues (from sjPlot, Utils.R)
+get_p_stars <- function(pval, thresholds = NULL) {
+
+  if (is.null(thresholds)) thresholds <- c(.05, .01, .001)
+
+  dplyr::case_when(
+    is.na(pval) ~ "",
+    pval < thresholds[3] ~ "***",
+    pval < thresholds[2] ~ "**",
+    pval < thresholds[1] ~ "*",
+    TRUE ~ ""
+  )
+}
+
+# FDR adjust p-values per strata group (all, SCD, MCI, AD) and per CAV/FAV questionnaire, pulling together the three cognitive domains and the three types of effects we look at (inter term, main long, and main cross sectional terms)
+
+# so each strata and each questionnaire score is adjusted for 3 terms * 3 cognitive domains  = 9 p-values
+
+results <- results %>%
+  group_by(sample, predictor) %>% 
+  mutate(p.fdr = p.adjust(p.value, method="fdr"),   # FDR p.adjust!
+         p.sig = ifelse(p.value < .05, 1, 0),
+         p.fdr.sig = ifelse(p.fdr < .05, 1, 0),
+         p.fdr.stars = get_p_stars(p.fdr)) %>%
+  ungroup()
+
+
+```
+
+```{r}
+# Format results into a spreadsheet
+results <- results %>%
+  mutate(Estimate = paste(round(HR, 2), " [", round(lower.EXP, 2), " - ", round(upper.EXP,2), "]", sep = ""),
+         p = round(p.value,2)) %>% 
+  select(sample, predictor, term, Estimate, p, p.fdr.stars) 
+
+
+CAV_lifetime_table <- results %>% filter(predictor =="CAV_lifetime")
+CAV_past_table     <- results %>% filter(predictor =="CAV_past")
+CAV_current_table  <- results %>% filter(predictor =="CAV_current")
+FAV_table          <- results %>% filter(predictor =="FAV")
+
+summary_table <- rbind(CAV_lifetime_table, 
+               rep(NA,6),
+               CAV_past_table,
+               rep(NA,6),
+               CAV_current_table,
+               rep(NA,6),
+               FAV_table
+)
+
+openxlsx::write.xlsx(summary_table, here(results_folder, "Summary_table.xlsx"), asTable = F)
+
+```
+
+
+
+
+
+

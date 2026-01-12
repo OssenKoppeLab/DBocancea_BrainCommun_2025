@@ -1,0 +1,1123 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+
+library(tidyverse)
+library(here)
+
+library(mice)
+library(broom.mixed)
+
+results_folder = "results/2_resilience/models/main_models_sensitivity_Edu_tert"
+if (!dir.exists(here(results_folder))) {dir.create(here(results_folder))}  #create folder if it doesn't exist
+
+```
+
+
+## Longitudinal models
+
+### 1) - Run models
+
+#### All 
+
+```{r}
+# Load mids objects (with longitudinal cognition)
+datmids_MMSE <- readRDS(file = here("data", "processed", "Part2_ADcont_datmids_mmse.rds"))
+datmids_MEM  <- readRDS(file = here("data", "processed", "Part2_ADcont_datmids_mem.rds"))
+datmids_EXEC <- readRDS(file = here("data", "processed", "Part2_ADcont_datmids_exec.rds"))
+
+# datimp_MMSE <- complete(datmids_MMSE, action="long", include = FALSE)
+
+```
+
+```{r}
+
+# CAV_lifetime
+
+# MMSE
+lmer_CAV_lifetime_MMSE_inter_s  <- with(datmids_MMSE, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_MMSE_main_s <- with(datmids_MMSE, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MMSE_inter_s <- summary(pool(lmer_CAV_lifetime_MMSE_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate) 
+MMSE_main_s  <- summary(pool(lmer_CAV_lifetime_MMSE_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# MEM
+lmer_CAV_lifetime_MEM_inter_s  <- with(datmids_MEM, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_MEM_main_s <- with(datmids_MEM, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MEM_inter_s <- summary(pool(lmer_CAV_lifetime_MEM_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MEM_main_s  <- summary(pool(lmer_CAV_lifetime_MEM_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# EXEC
+lmer_CAV_lifetime_EXEC_inter_s  <- with(datmids_EXEC, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_EXEC_main_s <- with(datmids_EXEC, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+EXEC_inter_s <- summary(pool(lmer_CAV_lifetime_EXEC_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+EXEC_main_s  <- summary(pool(lmer_CAV_lifetime_EXEC_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+CAV_lifetime <- list("MMSE inter" = MMSE_inter_s,
+                     "MMSE main"  = MMSE_main_s,
+                     "MEM inter"  = MEM_inter_s,
+                     "MEM main"   = MEM_main_s,
+                     "EXEC inter" = EXEC_inter_s,
+                     "EXEC main"  = EXEC_main_s ) 
+
+openxlsx::write.xlsx(CAV_lifetime, here(results_folder, "lmer_ALL_CAV_lifetime.xlsx"), asTable = F)
+
+```
+
+```{r}
+# CAV_past
+
+# MMSE
+lmer_CAV_past_MMSE_inter_s  <- with(datmids_MMSE, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                                Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_MMSE_main_s <- with(datmids_MMSE, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                              Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MMSE_inter_s <- summary(pool(lmer_CAV_past_MMSE_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MMSE_main_s  <- summary(pool(lmer_CAV_past_MMSE_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# MEM
+lmer_CAV_past_MEM_inter_s  <- with(datmids_MEM, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                               Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_MEM_main_s <- with(datmids_MEM, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MEM_inter_s <- summary(pool(lmer_CAV_past_MEM_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MEM_main_s  <- summary(pool(lmer_CAV_past_MEM_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# EXEC
+lmer_CAV_past_EXEC_inter_s  <- with(datmids_EXEC, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                                Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_EXEC_main_s <- with(datmids_EXEC, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                              Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+EXEC_inter_s <- summary(pool(lmer_CAV_past_EXEC_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+EXEC_main_s  <- summary(pool(lmer_CAV_past_EXEC_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+CAV_past <- list("MMSE inter" = MMSE_inter_s,
+                 "MMSE main"  = MMSE_main_s,
+                 "MEM inter"  = MEM_inter_s,
+                 "MEM main"   = MEM_main_s,
+                 "EXEC inter" = EXEC_inter_s,
+                 "EXEC main"  = EXEC_main_s ) 
+
+openxlsx::write.xlsx(CAV_past, here(results_folder, "lmer_ALL_CAV_past.xlsx"), asTable = F)
+
+```
+
+```{r}
+# CAV_current
+
+# MMSE
+lmer_CAV_current_MMSE_inter_s  <- with(datmids_MMSE, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                                Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_MMSE_main_s <- with(datmids_MMSE, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                              Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MMSE_inter_s <- summary(pool(lmer_CAV_current_MMSE_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MMSE_main_s  <- summary(pool(lmer_CAV_current_MMSE_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# MEM
+lmer_CAV_current_MEM_inter_s  <- with(datmids_MEM, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                               Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_MEM_main_s <- with(datmids_MEM, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MEM_inter_s <- summary(pool(lmer_CAV_current_MEM_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MEM_main_s  <- summary(pool(lmer_CAV_current_MEM_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# EXEC
+lmer_CAV_current_EXEC_inter_s  <- with(datmids_EXEC, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                                Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_EXEC_main_s <- with(datmids_EXEC, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                              Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+EXEC_inter_s <- summary(pool(lmer_CAV_current_EXEC_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+EXEC_main_s  <- summary(pool(lmer_CAV_current_EXEC_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+CAV_current <- list("MMSE inter" = MMSE_inter_s,
+                 "MMSE main"  = MMSE_main_s,
+                 "MEM inter"  = MEM_inter_s,
+                 "MEM main"   = MEM_main_s,
+                 "EXEC inter" = EXEC_inter_s,
+                 "EXEC main"  = EXEC_main_s ) 
+
+openxlsx::write.xlsx(CAV_current, here(results_folder, "lmer_ALL_CAV_current.xlsx"), asTable = F)
+
+```
+
+```{r}
+# FAV
+
+# MMSE
+lmer_FAV_MMSE_inter_s  <- with(datmids_MMSE, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                                Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_MMSE_main_s <- with(datmids_MMSE, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                              Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MMSE_inter_s <- summary(pool(lmer_FAV_MMSE_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MMSE_main_s  <- summary(pool(lmer_FAV_MMSE_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# MEM
+lmer_FAV_MEM_inter_s  <- with(datmids_MEM, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                               Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_MEM_main_s <- with(datmids_MEM, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MEM_inter_s <- summary(pool(lmer_FAV_MEM_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MEM_main_s  <- summary(pool(lmer_FAV_MEM_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# EXEC
+lmer_FAV_EXEC_inter_s  <- with(datmids_EXEC, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                                Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_EXEC_main_s <- with(datmids_EXEC, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                              Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+EXEC_inter_s <- summary(pool(lmer_FAV_EXEC_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+EXEC_main_s  <- summary(pool(lmer_FAV_EXEC_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+FAV <- list("MMSE inter" = MMSE_inter_s,
+                 "MMSE main"  = MMSE_main_s,
+                 "MEM inter"  = MEM_inter_s,
+                 "MEM main"   = MEM_main_s,
+                 "EXEC inter" = EXEC_inter_s,
+                 "EXEC main"  = EXEC_main_s ) 
+
+openxlsx::write.xlsx(FAV, here(results_folder, "lmer_ALL_FAV.xlsx"), asTable = F)
+
+```
+
+
+
+#### SCD
+
+```{r}
+# Load mids objects (with longitudinal cognition)
+datmids_MMSE_SCD <- readRDS(file = here("data", "processed", "Part2_ADcont_SCD_datmids_mmse.rds"))
+datmids_MEM_SCD  <- readRDS(file = here("data", "processed", "Part2_ADcont_SCD_datmids_mem.rds"))
+datmids_EXEC_SCD <- readRDS(file = here("data", "processed", "Part2_ADcont_SCD_datmids_exec.rds"))
+
+# datimp_MMSE_SCD <- complete(datmids_MMSE_SCD, action="long", include = FALSE)
+
+```
+
+```{r}
+
+# CAV_lifetime
+
+# MMSE
+lmer_CAV_lifetime_MMSE_inter_s  <- with(datmids_MMSE_SCD, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_MMSE_main_s <- with(datmids_MMSE_SCD, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MMSE_inter_s <- summary(pool(lmer_CAV_lifetime_MMSE_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MMSE_main_s  <- summary(pool(lmer_CAV_lifetime_MMSE_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# MEM
+lmer_CAV_lifetime_MEM_inter_s  <- with(datmids_MEM_SCD, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_MEM_main_s <- with(datmids_MEM_SCD, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MEM_inter_s <- summary(pool(lmer_CAV_lifetime_MEM_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MEM_main_s  <- summary(pool(lmer_CAV_lifetime_MEM_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# EXEC
+lmer_CAV_lifetime_EXEC_inter_s  <- with(datmids_EXEC_SCD, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_EXEC_main_s <- with(datmids_EXEC_SCD, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+EXEC_inter_s <- summary(pool(lmer_CAV_lifetime_EXEC_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+EXEC_main_s  <- summary(pool(lmer_CAV_lifetime_EXEC_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+CAV_lifetime_SCD <- list("MMSE inter" = MMSE_inter_s,
+                     "MMSE main"  = MMSE_main_s,
+                     "MEM inter"  = MEM_inter_s,
+                     "MEM main"   = MEM_main_s,
+                     "EXEC inter" = EXEC_inter_s,
+                     "EXEC main"  = EXEC_main_s ) 
+
+openxlsx::write.xlsx(CAV_lifetime_SCD, here(results_folder, "lmer_SCD_CAV_lifetime.xlsx"), asTable = F)
+
+```
+
+```{r}
+# CAV_past
+
+# MMSE
+lmer_CAV_past_MMSE_inter_s  <- with(datmids_MMSE_SCD, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_MMSE_main_s <- with(datmids_MMSE_SCD, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MMSE_inter_s <- summary(pool(lmer_CAV_past_MMSE_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MMSE_main_s  <- summary(pool(lmer_CAV_past_MMSE_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# MEM
+lmer_CAV_past_MEM_inter_s  <- with(datmids_MEM_SCD, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_MEM_main_s <- with(datmids_MEM_SCD, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MEM_inter_s <- summary(pool(lmer_CAV_past_MEM_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MEM_main_s  <- summary(pool(lmer_CAV_past_MEM_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# EXEC
+lmer_CAV_past_EXEC_inter_s  <- with(datmids_EXEC_SCD, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_EXEC_main_s <- with(datmids_EXEC_SCD, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+EXEC_inter_s <- summary(pool(lmer_CAV_past_EXEC_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+EXEC_main_s  <- summary(pool(lmer_CAV_past_EXEC_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+CAV_past_SCD <- list("MMSE inter" = MMSE_inter_s,
+                     "MMSE main"  = MMSE_main_s,
+                     "MEM inter"  = MEM_inter_s,
+                     "MEM main"   = MEM_main_s,
+                     "EXEC inter" = EXEC_inter_s,
+                     "EXEC main"  = EXEC_main_s ) 
+
+
+openxlsx::write.xlsx(CAV_past_SCD, here(results_folder, "lmer_SCD_CAV_past.xlsx"), asTable = F)
+
+```
+
+```{r}
+# CAV_current
+
+# MMSE
+lmer_CAV_current_MMSE_inter_s  <- with(datmids_MMSE_SCD, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_MMSE_main_s <- with(datmids_MMSE_SCD, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MMSE_inter_s <- summary(pool(lmer_CAV_current_MMSE_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MMSE_main_s  <- summary(pool(lmer_CAV_current_MMSE_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# MEM
+lmer_CAV_current_MEM_inter_s  <- with(datmids_MEM_SCD, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_MEM_main_s <- with(datmids_MEM_SCD, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MEM_inter_s <- summary(pool(lmer_CAV_current_MEM_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MEM_main_s  <- summary(pool(lmer_CAV_current_MEM_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# EXEC
+lmer_CAV_current_EXEC_inter_s  <- with(datmids_EXEC_SCD, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_EXEC_main_s <- with(datmids_EXEC_SCD, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+EXEC_inter_s <- summary(pool(lmer_CAV_current_EXEC_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+EXEC_main_s  <- summary(pool(lmer_CAV_current_EXEC_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+CAV_current_SCD <- list("MMSE inter" = MMSE_inter_s,
+                     "MMSE main"  = MMSE_main_s,
+                     "MEM inter"  = MEM_inter_s,
+                     "MEM main"   = MEM_main_s,
+                     "EXEC inter" = EXEC_inter_s,
+                     "EXEC main"  = EXEC_main_s ) 
+
+
+openxlsx::write.xlsx(CAV_current_SCD, here(results_folder, "lmer_SCD_CAV_current.xlsx"), asTable = F)
+
+```
+
+```{r}
+# FAV
+
+# MMSE
+lmer_FAV_MMSE_inter_s  <- with(datmids_MMSE_SCD, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_MMSE_main_s <- with(datmids_MMSE_SCD, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MMSE_inter_s <- summary(pool(lmer_FAV_MMSE_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MMSE_main_s  <- summary(pool(lmer_FAV_MMSE_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# MEM
+lmer_FAV_MEM_inter_s  <- with(datmids_MEM_SCD, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_MEM_main_s <- with(datmids_MEM_SCD, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MEM_inter_s <- summary(pool(lmer_FAV_MEM_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MEM_main_s  <- summary(pool(lmer_FAV_MEM_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# EXEC
+lmer_FAV_EXEC_inter_s  <- with(datmids_EXEC_SCD, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_EXEC_main_s <- with(datmids_EXEC_SCD, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+EXEC_inter_s <- summary(pool(lmer_FAV_EXEC_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+EXEC_main_s  <- summary(pool(lmer_FAV_EXEC_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+FAV_SCD <- list("MMSE inter" = MMSE_inter_s,
+                     "MMSE main"  = MMSE_main_s,
+                     "MEM inter"  = MEM_inter_s,
+                     "MEM main"   = MEM_main_s,
+                     "EXEC inter" = EXEC_inter_s,
+                     "EXEC main"  = EXEC_main_s ) 
+
+
+
+openxlsx::write.xlsx(FAV_SCD, here(results_folder, "lmer_SCD_FAV.xlsx"), asTable = F)
+
+```
+
+
+
+#### MCI
+
+```{r}
+# Load mids objects (with longitudinal cognition)
+datmids_MMSE_MCI <- readRDS(file = here("data", "processed", "Part2_ADcont_MCI_datmids_mmse.rds"))
+datmids_MEM_MCI  <- readRDS(file = here("data", "processed", "Part2_ADcont_MCI_datmids_mem.rds"))
+datmids_EXEC_MCI <- readRDS(file = here("data", "processed", "Part2_ADcont_MCI_datmids_exec.rds"))
+
+```
+
+```{r}
+
+# CAV_lifetime
+
+# MMSE
+lmer_CAV_lifetime_MMSE_inter_s  <- with(datmids_MMSE_MCI, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_MMSE_main_s <- with(datmids_MMSE_MCI, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MMSE_inter_s <- summary(pool(lmer_CAV_lifetime_MMSE_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MMSE_main_s  <- summary(pool(lmer_CAV_lifetime_MMSE_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# MEM
+lmer_CAV_lifetime_MEM_inter_s  <- with(datmids_MEM_MCI, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_MEM_main_s <- with(datmids_MEM_MCI, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MEM_inter_s <- summary(pool(lmer_CAV_lifetime_MEM_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MEM_main_s  <- summary(pool(lmer_CAV_lifetime_MEM_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# EXEC
+lmer_CAV_lifetime_EXEC_inter_s  <- with(datmids_EXEC_MCI, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_EXEC_main_s <- with(datmids_EXEC_MCI, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+EXEC_inter_s <- summary(pool(lmer_CAV_lifetime_EXEC_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+EXEC_main_s  <- summary(pool(lmer_CAV_lifetime_EXEC_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+CAV_lifetime_MCI <- list("MMSE inter" = MMSE_inter_s,
+                     "MMSE main"  = MMSE_main_s,
+                     "MEM inter"  = MEM_inter_s,
+                     "MEM main"   = MEM_main_s,
+                     "EXEC inter" = EXEC_inter_s,
+                     "EXEC main"  = EXEC_main_s ) 
+
+openxlsx::write.xlsx(CAV_lifetime_MCI, here(results_folder, "lmer_MCI_CAV_lifetime.xlsx"), asTable = F)
+
+```
+
+```{r}
+# CAV_past
+
+# MMSE
+lmer_CAV_past_MMSE_inter_s  <- with(datmids_MMSE_MCI, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_MMSE_main_s <- with(datmids_MMSE_MCI, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MMSE_inter_s <- summary(pool(lmer_CAV_past_MMSE_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MMSE_main_s  <- summary(pool(lmer_CAV_past_MMSE_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# MEM
+lmer_CAV_past_MEM_inter_s  <- with(datmids_MEM_MCI, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_MEM_main_s <- with(datmids_MEM_MCI, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MEM_inter_s <- summary(pool(lmer_CAV_past_MEM_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MEM_main_s  <- summary(pool(lmer_CAV_past_MEM_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# EXEC
+lmer_CAV_past_EXEC_inter_s  <- with(datmids_EXEC_MCI, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_EXEC_main_s <- with(datmids_EXEC_MCI, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+EXEC_inter_s <- summary(pool(lmer_CAV_past_EXEC_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+EXEC_main_s  <- summary(pool(lmer_CAV_past_EXEC_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+CAV_past_MCI <- list("MMSE inter" = MMSE_inter_s,
+                     "MMSE main"  = MMSE_main_s,
+                     "MEM inter"  = MEM_inter_s,
+                     "MEM main"   = MEM_main_s,
+                     "EXEC inter" = EXEC_inter_s,
+                     "EXEC main"  = EXEC_main_s ) 
+
+openxlsx::write.xlsx(CAV_past_MCI, here(results_folder, "lmer_MCI_CAV_past.xlsx"), asTable = F)
+
+```
+
+```{r}
+# CAV_current
+
+# MMSE
+lmer_CAV_current_MMSE_inter_s  <- with(datmids_MMSE_MCI, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_MMSE_main_s <- with(datmids_MMSE_MCI, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MMSE_inter_s <- summary(pool(lmer_CAV_current_MMSE_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MMSE_main_s  <- summary(pool(lmer_CAV_current_MMSE_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# MEM
+lmer_CAV_current_MEM_inter_s  <- with(datmids_MEM_MCI, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_MEM_main_s <- with(datmids_MEM_MCI, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MEM_inter_s <- summary(pool(lmer_CAV_current_MEM_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MEM_main_s  <- summary(pool(lmer_CAV_current_MEM_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# EXEC
+lmer_CAV_current_EXEC_inter_s  <- with(datmids_EXEC_MCI, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_EXEC_main_s <- with(datmids_EXEC_MCI, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+EXEC_inter_s <- summary(pool(lmer_CAV_current_EXEC_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+EXEC_main_s  <- summary(pool(lmer_CAV_current_EXEC_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+CAV_current_MCI <- list("MMSE inter" = MMSE_inter_s,
+                     "MMSE main"  = MMSE_main_s,
+                     "MEM inter"  = MEM_inter_s,
+                     "MEM main"   = MEM_main_s,
+                     "EXEC inter" = EXEC_inter_s,
+                     "EXEC main"  = EXEC_main_s ) 
+
+openxlsx::write.xlsx(CAV_current_MCI, here(results_folder, "lmer_MCI_CAV_current.xlsx"), asTable = F)
+
+```
+
+```{r}
+# FAV
+
+# MMSE
+lmer_FAV_MMSE_inter_s  <- with(datmids_MMSE_MCI, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_MMSE_main_s <- with(datmids_MMSE_MCI, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MMSE_inter_s <- summary(pool(lmer_FAV_MMSE_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MMSE_main_s  <- summary(pool(lmer_FAV_MMSE_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# MEM
+lmer_FAV_MEM_inter_s  <- with(datmids_MEM_MCI, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_MEM_main_s <- with(datmids_MEM_MCI, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MEM_inter_s <- summary(pool(lmer_FAV_MEM_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MEM_main_s  <- summary(pool(lmer_FAV_MEM_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# EXEC
+lmer_FAV_EXEC_inter_s  <- with(datmids_EXEC_MCI, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_EXEC_main_s <- with(datmids_EXEC_MCI, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+EXEC_inter_s <- summary(pool(lmer_FAV_EXEC_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+EXEC_main_s  <- summary(pool(lmer_FAV_EXEC_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+FAV_MCI <- list("MMSE inter" = MMSE_inter_s,
+                     "MMSE main"  = MMSE_main_s,
+                     "MEM inter"  = MEM_inter_s,
+                     "MEM main"   = MEM_main_s,
+                     "EXEC inter" = EXEC_inter_s,
+                     "EXEC main"  = EXEC_main_s ) 
+
+
+
+openxlsx::write.xlsx(FAV_MCI, here(results_folder, "lmer_MCI_FAV.xlsx"), asTable = F)
+
+```
+
+
+
+#### AD
+
+```{r}
+# Load mids objects (with longitudinal cognition)
+datmids_MMSE_AD <- readRDS(file = here("data", "processed", "Part2_ADcont_AD_datmids_mmse.rds"))
+datmids_MEM_AD  <- readRDS(file = here("data", "processed", "Part2_ADcont_AD_datmids_mem.rds"))
+datmids_EXEC_AD <- readRDS(file = here("data", "processed", "Part2_ADcont_AD_datmids_exec.rds"))
+
+```
+
+```{r}
+
+# CAV_lifetime
+
+# MMSE
+lmer_CAV_lifetime_MMSE_inter_s  <- with(datmids_MMSE_AD, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_MMSE_main_s <- with(datmids_MMSE_AD, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MMSE_inter_s <- summary(pool(lmer_CAV_lifetime_MMSE_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MMSE_main_s  <- summary(pool(lmer_CAV_lifetime_MMSE_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# MEM
+lmer_CAV_lifetime_MEM_inter_s  <- with(datmids_MEM_AD, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_MEM_main_s <- with(datmids_MEM_AD, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MEM_inter_s <- summary(pool(lmer_CAV_lifetime_MEM_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MEM_main_s  <- summary(pool(lmer_CAV_lifetime_MEM_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# EXEC
+lmer_CAV_lifetime_EXEC_inter_s  <- with(datmids_EXEC_AD, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_EXEC_main_s <- with(datmids_EXEC_AD, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+EXEC_inter_s <- summary(pool(lmer_CAV_lifetime_EXEC_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+EXEC_main_s  <- summary(pool(lmer_CAV_lifetime_EXEC_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+CAV_lifetime_AD <- list("MMSE inter" = MMSE_inter_s,
+                     "MMSE main"  = MMSE_main_s,
+                     "MEM inter"  = MEM_inter_s,
+                     "MEM main"   = MEM_main_s,
+                     "EXEC inter" = EXEC_inter_s,
+                     "EXEC main"  = EXEC_main_s ) 
+
+openxlsx::write.xlsx(CAV_lifetime_AD, here(results_folder, "lmer_AD_CAV_lifetime.xlsx"), asTable = F)
+
+```
+
+```{r}
+# CAV_past
+
+# MMSE
+lmer_CAV_past_MMSE_inter_s  <- with(datmids_MMSE_AD, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_MMSE_main_s <- with(datmids_MMSE_AD, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MMSE_inter_s <- summary(pool(lmer_CAV_past_MMSE_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MMSE_main_s  <- summary(pool(lmer_CAV_past_MMSE_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# MEM
+lmer_CAV_past_MEM_inter_s  <- with(datmids_MEM_AD, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_MEM_main_s <- with(datmids_MEM_AD, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MEM_inter_s <- summary(pool(lmer_CAV_past_MEM_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MEM_main_s  <- summary(pool(lmer_CAV_past_MEM_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# EXEC
+lmer_CAV_past_EXEC_inter_s  <- with(datmids_EXEC_AD, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_EXEC_main_s <- with(datmids_EXEC_AD, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+EXEC_inter_s <- summary(pool(lmer_CAV_past_EXEC_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+EXEC_main_s  <- summary(pool(lmer_CAV_past_EXEC_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+CAV_past_AD <- list("MMSE inter" = MMSE_inter_s,
+                     "MMSE main"  = MMSE_main_s,
+                     "MEM inter"  = MEM_inter_s,
+                     "MEM main"   = MEM_main_s,
+                     "EXEC inter" = EXEC_inter_s,
+                     "EXEC main"  = EXEC_main_s ) 
+
+openxlsx::write.xlsx(CAV_past_AD, here(results_folder, "lmer_AD_CAV_past.xlsx"), asTable = F)
+
+```
+
+```{r}
+# CAV_current
+
+# MMSE
+lmer_CAV_current_MMSE_inter_s  <- with(datmids_MMSE_AD, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_MMSE_main_s <- with(datmids_MMSE_AD, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MMSE_inter_s <- summary(pool(lmer_CAV_current_MMSE_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MMSE_main_s  <- summary(pool(lmer_CAV_current_MMSE_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# MEM
+lmer_CAV_current_MEM_inter_s  <- with(datmids_MEM_AD, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_MEM_main_s <- with(datmids_MEM_AD, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MEM_inter_s <- summary(pool(lmer_CAV_current_MEM_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MEM_main_s  <- summary(pool(lmer_CAV_current_MEM_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# EXEC
+lmer_CAV_current_EXEC_inter_s  <- with(datmids_EXEC_AD, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_EXEC_main_s <- with(datmids_EXEC_AD, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+EXEC_inter_s <- summary(pool(lmer_CAV_current_EXEC_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+EXEC_main_s  <- summary(pool(lmer_CAV_current_EXEC_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+CAV_current_AD <- list("MMSE inter" = MMSE_inter_s,
+                     "MMSE main"  = MMSE_main_s,
+                     "MEM inter"  = MEM_inter_s,
+                     "MEM main"   = MEM_main_s,
+                     "EXEC inter" = EXEC_inter_s,
+                     "EXEC main"  = EXEC_main_s ) 
+
+openxlsx::write.xlsx(CAV_current_AD, here(results_folder, "lmer_AD_CAV_current.xlsx"), asTable = F)
+
+```
+
+```{r}
+# FAV
+
+# MMSE
+lmer_FAV_MMSE_inter_s  <- with(datmids_MMSE_AD, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_MMSE_main_s <- with(datmids_MMSE_AD, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MMSE_inter_s <- summary(pool(lmer_FAV_MMSE_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MMSE_main_s  <- summary(pool(lmer_FAV_MMSE_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# MEM
+lmer_FAV_MEM_inter_s  <- with(datmids_MEM_AD, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_MEM_main_s <- with(datmids_MEM_AD, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+MEM_inter_s <- summary(pool(lmer_FAV_MEM_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+MEM_main_s  <- summary(pool(lmer_FAV_MEM_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+# EXEC
+lmer_FAV_EXEC_inter_s  <- with(datmids_EXEC_AD, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_EXEC_main_s <- with(datmids_EXEC_AD, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             Time_years*Edu_tert + (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+EXEC_inter_s <- summary(pool(lmer_FAV_EXEC_inter_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+EXEC_main_s  <- summary(pool(lmer_FAV_EXEC_main_s), conf.int = TRUE) %>% relocate(c("statistic", "p.value"), .after= estimate)
+
+FAV_AD <- list("MMSE inter" = MMSE_inter_s,
+               "MMSE main"  = MMSE_main_s,
+               "MEM inter"  = MEM_inter_s,
+               "MEM main"   = MEM_main_s,
+               "EXEC inter" = EXEC_inter_s,
+               "EXEC main"  = EXEC_main_s ) 
+
+
+openxlsx::write.xlsx(FAV_AD, here(results_folder, "lmer_AD_FAV.xlsx"), asTable = F)
+
+```
+
+
+### Merge results
+
+Merge everything and select only the effects of interest (interaction, main longitudinal, main cross-sectional)
+
+```{r}
+# MMSE
+
+inter_MMSE <- rbind(CAV_lifetime$`MMSE inter`     %>% mutate(sample = "All", predictor="CAV_lifetime", .before=term), 
+                    CAV_lifetime_SCD$`MMSE inter` %>% mutate(sample = "SCD", predictor="CAV_lifetime", .before=term),
+                    CAV_lifetime_MCI$`MMSE inter` %>% mutate(sample = "MCI", predictor="CAV_lifetime", .before=term),
+                    CAV_lifetime_AD$`MMSE inter`  %>% mutate(sample = "AD", predictor="CAV_lifetime", .before=term),
+                    
+                    CAV_past$`MMSE inter`     %>% mutate(sample = "All", predictor="CAV_past", .before=term), 
+                    CAV_past_SCD$`MMSE inter` %>% mutate(sample = "SCD", predictor="CAV_past", .before=term),
+                    CAV_past_MCI$`MMSE inter` %>% mutate(sample = "MCI", predictor="CAV_past", .before=term),
+                    CAV_past_AD$`MMSE inter`  %>% mutate(sample = "AD", predictor="CAV_past", .before=term),
+                    
+                    CAV_current$`MMSE inter`     %>% mutate(sample = "All", predictor="CAV_current", .before=term), 
+                    CAV_current_SCD$`MMSE inter` %>% mutate(sample = "SCD", predictor="CAV_current", .before=term),
+                    CAV_current_MCI$`MMSE inter` %>% mutate(sample = "MCI", predictor="CAV_current", .before=term),
+                    CAV_current_AD$`MMSE inter`  %>% mutate(sample = "AD", predictor="CAV_current", .before=term),
+                    
+                    FAV$`MMSE inter` %>% mutate(sample = "All", predictor="FAV", .before=term), 
+                    FAV_SCD$`MMSE inter` %>% mutate(sample = "SCD", predictor="FAV", .before=term),
+                    FAV_MCI$`MMSE inter` %>% mutate(sample = "MCI", predictor="FAV", .before=term),
+                    FAV_AD$`MMSE inter` %>% mutate(sample = "AD", predictor="FAV", .before=term))
+
+main_MMSE <- rbind(CAV_lifetime$`MMSE main`     %>% mutate(sample = "All", predictor="CAV_lifetime", .before=term), 
+                    CAV_lifetime_SCD$`MMSE main` %>% mutate(sample = "SCD", predictor="CAV_lifetime", .before=term),
+                    CAV_lifetime_MCI$`MMSE main` %>% mutate(sample = "MCI", predictor="CAV_lifetime", .before=term),
+                    CAV_lifetime_AD$`MMSE main`  %>% mutate(sample = "AD", predictor="CAV_lifetime", .before=term),
+                    
+                    CAV_past$`MMSE main`     %>% mutate(sample = "All", predictor="CAV_past", .before=term), 
+                    CAV_past_SCD$`MMSE main` %>% mutate(sample = "SCD", predictor="CAV_past", .before=term),
+                    CAV_past_MCI$`MMSE main` %>% mutate(sample = "MCI", predictor="CAV_past", .before=term),
+                    CAV_past_AD$`MMSE main`  %>% mutate(sample = "AD", predictor="CAV_past", .before=term),
+                    
+                    CAV_current$`MMSE main`     %>% mutate(sample = "All", predictor="CAV_current", .before=term), 
+                    CAV_current_SCD$`MMSE main` %>% mutate(sample = "SCD", predictor="CAV_current", .before=term),
+                    CAV_current_MCI$`MMSE main` %>% mutate(sample = "MCI", predictor="CAV_current", .before=term),
+                    CAV_current_AD$`MMSE main`  %>% mutate(sample = "AD", predictor="CAV_current", .before=term),
+                    
+                    FAV$`MMSE main` %>% mutate(sample = "All", predictor="FAV", .before=term), 
+                    FAV_SCD$`MMSE main` %>% mutate(sample = "SCD", predictor="FAV", .before=term),
+                    FAV_MCI$`MMSE main` %>% mutate(sample = "MCI", predictor="FAV", .before=term),
+                    FAV_AD$`MMSE main` %>% mutate(sample = "AD", predictor="FAV", .before=term))
+
+# Memory
+
+inter_MEM <- rbind(CAV_lifetime$`MEM inter`     %>% mutate(sample = "All", predictor="CAV_lifetime", .before=term), 
+                    CAV_lifetime_SCD$`MEM inter` %>% mutate(sample = "SCD", predictor="CAV_lifetime", .before=term),
+                    CAV_lifetime_MCI$`MEM inter` %>% mutate(sample = "MCI", predictor="CAV_lifetime", .before=term),
+                    CAV_lifetime_AD$`MEM inter`  %>% mutate(sample = "AD", predictor="CAV_lifetime", .before=term),
+                    
+                    CAV_past$`MEM inter`     %>% mutate(sample = "All", predictor="CAV_past", .before=term), 
+                    CAV_past_SCD$`MEM inter` %>% mutate(sample = "SCD", predictor="CAV_past", .before=term),
+                    CAV_past_MCI$`MEM inter` %>% mutate(sample = "MCI", predictor="CAV_past", .before=term),
+                    CAV_past_AD$`MEM inter`  %>% mutate(sample = "AD", predictor="CAV_past", .before=term),
+                    
+                    CAV_current$`MEM inter`     %>% mutate(sample = "All", predictor="CAV_current", .before=term), 
+                    CAV_current_SCD$`MEM inter` %>% mutate(sample = "SCD", predictor="CAV_current", .before=term),
+                    CAV_current_MCI$`MEM inter` %>% mutate(sample = "MCI", predictor="CAV_current", .before=term),
+                    CAV_current_AD$`MEM inter`  %>% mutate(sample = "AD", predictor="CAV_current", .before=term),
+                    
+                    FAV$`MEM inter` %>% mutate(sample = "All", predictor="FAV", .before=term), 
+                    FAV_SCD$`MEM inter` %>% mutate(sample = "SCD", predictor="FAV", .before=term),
+                    FAV_MCI$`MEM inter` %>% mutate(sample = "MCI", predictor="FAV", .before=term),
+                    FAV_AD$`MEM inter` %>% mutate(sample = "AD", predictor="FAV", .before=term))
+
+main_MEM <- rbind(CAV_lifetime$`MEM main`     %>% mutate(sample = "All", predictor="CAV_lifetime", .before=term), 
+                    CAV_lifetime_SCD$`MEM main` %>% mutate(sample = "SCD", predictor="CAV_lifetime", .before=term),
+                    CAV_lifetime_MCI$`MEM main` %>% mutate(sample = "MCI", predictor="CAV_lifetime", .before=term),
+                    CAV_lifetime_AD$`MEM main`  %>% mutate(sample = "AD", predictor="CAV_lifetime", .before=term),
+                    
+                    CAV_past$`MEM main`     %>% mutate(sample = "All", predictor="CAV_past", .before=term), 
+                    CAV_past_SCD$`MEM main` %>% mutate(sample = "SCD", predictor="CAV_past", .before=term),
+                    CAV_past_MCI$`MEM main` %>% mutate(sample = "MCI", predictor="CAV_past", .before=term),
+                    CAV_past_AD$`MEM main`  %>% mutate(sample = "AD", predictor="CAV_past", .before=term),
+                    
+                    CAV_current$`MEM main`     %>% mutate(sample = "All", predictor="CAV_current", .before=term), 
+                    CAV_current_SCD$`MEM main` %>% mutate(sample = "SCD", predictor="CAV_current", .before=term),
+                    CAV_current_MCI$`MEM main` %>% mutate(sample = "MCI", predictor="CAV_current", .before=term),
+                    CAV_current_AD$`MEM main`  %>% mutate(sample = "AD", predictor="CAV_current", .before=term),
+                    
+                    FAV$`MEM main` %>% mutate(sample = "All", predictor="FAV", .before=term), 
+                    FAV_SCD$`MEM main` %>% mutate(sample = "SCD", predictor="FAV", .before=term),
+                    FAV_MCI$`MEM main` %>% mutate(sample = "MCI", predictor="FAV", .before=term),
+                    FAV_AD$`MEM main` %>% mutate(sample = "AD", predictor="FAV", .before=term))
+
+# Executive
+
+inter_EXEC <- rbind(CAV_lifetime$`EXEC inter`     %>% mutate(sample = "All", predictor="CAV_lifetime", .before=term), 
+                    CAV_lifetime_SCD$`EXEC inter` %>% mutate(sample = "SCD", predictor="CAV_lifetime", .before=term),
+                    CAV_lifetime_MCI$`EXEC inter` %>% mutate(sample = "MCI", predictor="CAV_lifetime", .before=term),
+                    CAV_lifetime_AD$`EXEC inter`  %>% mutate(sample = "AD", predictor="CAV_lifetime", .before=term),
+                    
+                    CAV_past$`EXEC inter`     %>% mutate(sample = "All", predictor="CAV_past", .before=term), 
+                    CAV_past_SCD$`EXEC inter` %>% mutate(sample = "SCD", predictor="CAV_past", .before=term),
+                    CAV_past_MCI$`EXEC inter` %>% mutate(sample = "MCI", predictor="CAV_past", .before=term),
+                    CAV_past_AD$`EXEC inter`  %>% mutate(sample = "AD", predictor="CAV_past", .before=term),
+                    
+                    CAV_current$`EXEC inter`     %>% mutate(sample = "All", predictor="CAV_current", .before=term), 
+                    CAV_current_SCD$`EXEC inter` %>% mutate(sample = "SCD", predictor="CAV_current", .before=term),
+                    CAV_current_MCI$`EXEC inter` %>% mutate(sample = "MCI", predictor="CAV_current", .before=term),
+                    CAV_current_AD$`EXEC inter`  %>% mutate(sample = "AD", predictor="CAV_current", .before=term),
+                    
+                    FAV$`EXEC inter` %>% mutate(sample = "All", predictor="FAV", .before=term), 
+                    FAV_SCD$`EXEC inter` %>% mutate(sample = "SCD", predictor="FAV", .before=term),
+                    FAV_MCI$`EXEC inter` %>% mutate(sample = "MCI", predictor="FAV", .before=term),
+                    FAV_AD$`EXEC inter` %>% mutate(sample = "AD", predictor="FAV", .before=term))
+
+main_EXEC <- rbind(CAV_lifetime$`EXEC main`     %>% mutate(sample = "All", predictor="CAV_lifetime", .before=term), 
+                    CAV_lifetime_SCD$`EXEC main` %>% mutate(sample = "SCD", predictor="CAV_lifetime", .before=term),
+                    CAV_lifetime_MCI$`EXEC main` %>% mutate(sample = "MCI", predictor="CAV_lifetime", .before=term),
+                    CAV_lifetime_AD$`EXEC main`  %>% mutate(sample = "AD", predictor="CAV_lifetime", .before=term),
+                    
+                    CAV_past$`EXEC main`     %>% mutate(sample = "All", predictor="CAV_past", .before=term), 
+                    CAV_past_SCD$`EXEC main` %>% mutate(sample = "SCD", predictor="CAV_past", .before=term),
+                    CAV_past_MCI$`EXEC main` %>% mutate(sample = "MCI", predictor="CAV_past", .before=term),
+                    CAV_past_AD$`EXEC main`  %>% mutate(sample = "AD", predictor="CAV_past", .before=term),
+                    
+                    CAV_current$`EXEC main`     %>% mutate(sample = "All", predictor="CAV_current", .before=term), 
+                    CAV_current_SCD$`EXEC main` %>% mutate(sample = "SCD", predictor="CAV_current", .before=term),
+                    CAV_current_MCI$`EXEC main` %>% mutate(sample = "MCI", predictor="CAV_current", .before=term),
+                    CAV_current_AD$`EXEC main`  %>% mutate(sample = "AD", predictor="CAV_current", .before=term),
+                    
+                    FAV$`EXEC main` %>% mutate(sample = "All", predictor="FAV", .before=term), 
+                    FAV_SCD$`EXEC main` %>% mutate(sample = "SCD", predictor="FAV", .before=term),
+                    FAV_MCI$`EXEC main` %>% mutate(sample = "MCI", predictor="FAV", .before=term),
+                    FAV_AD$`EXEC main` %>% mutate(sample = "AD", predictor="FAV", .before=term))
+
+
+all_results <- rbind(inter_MMSE %>%  mutate(outcome  ="MMSE", model = "inter"),
+               inter_MEM %>%  mutate(outcome   ="MEM",  model = "inter"),
+               inter_EXEC %>%  mutate(outcome  ="EXEC", model = "inter"),
+               
+               main_MMSE %>%  mutate(outcome  ="MMSE",  model = "main"),
+               main_MEM %>%  mutate(outcome   ="MEM",   model = "main"),
+               main_EXEC %>%  mutate(outcome  ="EXEC",  model = "main") ) %>% 
+  rename(ci.low = "2.5 %",
+         ci.high = "97.5 %")
+
+
+saveRDS(all_results, file = here(results_folder, "all_models_results.RDS"))
+```
+
+
+
+
+
+### 2) - Export results
+
+#### 1) 3way, longi, crsos
+
+```{r}
+# Load pre-saved results 
+all_results <- readRDS(here(results_folder, "all_models_results.RDS"))
+
+# select effects of interest
+results <- all_results %>% 
+  filter( (model == "main" & term %in% c("CAV_lifetime_s", "Time_years:CAV_lifetime_s", 
+                                         "CAV_past_s",     "Time_years:CAV_past_s",    
+                                         "CAV_current_s",  "Time_years:CAV_current_s", 
+                                         "FAV_s",          "Time_years:FAV_s"))           |
+            (model == "inter" & term %in% c( "Time_years:TP_thick_s:CAV_lifetime_s",
+                                             "Time_years:TP_thick_s:CAV_past_s", 
+                                             "Time_years:TP_thick_s:CAV_current_s", 
+                                             "Time_years:TP_thick_s:FAV_s" ))
+  ) %>% 
+  select(sample, predictor, outcome, model, term, estimate, ci.low, ci.high, statistic, p.value)
+  
+```
+
+
+##### FDR Adjust
+
+```{r}
+# Function to get stars corresponding to pvalues (from sjPlot, Utils.R)
+get_p_stars <- function(pval, thresholds = NULL) {
+
+  if (is.null(thresholds)) thresholds <- c(.05, .01, .001)
+
+  dplyr::case_when(
+    is.na(pval) ~ "",
+    pval < thresholds[3] ~ "***",
+    pval < thresholds[2] ~ "**",
+    pval < thresholds[1] ~ "*",
+    TRUE ~ ""
+  )
+}
+
+# FDR adjust p-values per strata group (all, SCD, MCI, AD) and per CAV/FAV questionnaire, pulling together the three cognitive domains and the three types of effects we look at (inter term, main long, and main cross sectional terms)
+
+# so each strata and each questionnaire score is adjusted for 3 terms * 3 cognitive domains  = 9 p-values
+
+results <- results %>%
+  group_by(sample, predictor) %>% 
+  mutate(p.fdr = p.adjust(p.value, method="fdr"),   # FDR p.adjust!
+         p.sig = ifelse(p.value < .05, 1, 0),
+         p.fdr.sig = ifelse(p.fdr < .05, 1, 0),
+         p.fdr.stars = get_p_stars(p.fdr)) %>%
+  ungroup()
+
+
+```
+
+```{r}
+# Format results into a spreadsheet
+results <- results %>%
+  mutate(Estimate = paste(round(estimate, 3), " [", round(ci.low, 3), " - ", round(ci.high,3), "]", sep = ""),
+         p = round(p.value,3)) %>% 
+  select(sample, predictor, outcome, term, Estimate, p, p.fdr.stars) 
+
+
+results_wide <- results %>% 
+  pivot_wider(names_from=outcome, values_from=c(Estimate, p, p.fdr.stars)) %>% 
+  select(predictor, term, sample, Estimate_MMSE, p_MMSE, p.fdr.stars_MMSE, Estimate_MEM, p_MEM, p.fdr.stars_MEM, Estimate_EXEC, p_EXEC, p.fdr.stars_EXEC) %>% 
+  arrange(desc(term))
+
+
+CAV_lifetime_table <- results_wide %>% filter(predictor =="CAV_lifetime")
+CAV_past_table     <- results_wide %>% filter(predictor =="CAV_past")
+CAV_current_table  <- results_wide %>% filter(predictor =="CAV_current")
+FAV_table          <- results_wide %>% filter(predictor =="FAV")
+
+
+summary_table <- rbind(CAV_lifetime_table, 
+               rep(NA,12),
+               CAV_past_table,
+               rep(NA,12),
+               CAV_current_table,
+               rep(NA,12),
+               FAV_table
+)
+
+openxlsx::write.xlsx(summary_table, here(results_folder, "Summary_table.xlsx"), asTable = F)
+
+```
+
+
+#### 2) Moderation cross/sectional
+
+Including the moderation effect at the cross/sectional level
+
+```{r}
+# Load pre-saved results 
+all_results <- readRDS(here(results_folder, "all_models_results.RDS"))
+
+# select effects of interest
+results <- all_results %>% 
+  filter( (model == "main" & term %in% c("CAV_lifetime_s", "Time_years:CAV_lifetime_s", 
+                                         "CAV_past_s",     "Time_years:CAV_past_s",    
+                                         "CAV_current_s",  "Time_years:CAV_current_s", 
+                                         "FAV_s",          "Time_years:FAV_s"))           |
+            (model == "inter" & term %in% c( "Time_years:TP_thick_s:CAV_lifetime_s", "TP_thick_s:CAV_lifetime_s",
+                                             "Time_years:TP_thick_s:CAV_past_s",     "TP_thick_s:CAV_past_s",
+                                             "Time_years:TP_thick_s:CAV_current_s",  "TP_thick_s:CAV_current_s",
+                                             "Time_years:TP_thick_s:FAV_s",          "TP_thick_s:FAV_s"  ))
+  ) %>% 
+  select(sample, predictor, outcome, model, term, estimate, ci.low, ci.high, statistic, p.value)
+  
+```
+
+
+##### FDR Adjust
+
+```{r}
+# Function to get stars corresponding to pvalues (from sjPlot, Utils.R)
+get_p_stars <- function(pval, thresholds = NULL) {
+
+  if (is.null(thresholds)) thresholds <- c(.05, .01, .001)
+
+  dplyr::case_when(
+    is.na(pval) ~ "",
+    pval < thresholds[3] ~ "***",
+    pval < thresholds[2] ~ "**",
+    pval < thresholds[1] ~ "*",
+    TRUE ~ ""
+  )
+}
+
+# FDR adjust p-values per strata group (all, SCD, MCI, AD) and per CAV/FAV questionnaire, pulling together the three cognitive domains and the three types of effects we look at (inter term, main long, and main cross sectional terms)
+
+# so each strata and each questionnaire score is adjusted for 3 terms * 3 cognitive domains  = 9 p-values
+
+results <- results %>%
+  group_by(sample, predictor) %>% 
+  mutate(p.fdr = p.adjust(p.value, method="fdr"),   # FDR p.adjust!
+         p.sig = ifelse(p.value < .05, 1, 0),
+         p.fdr.sig = ifelse(p.fdr < .05, 1, 0),
+         p.fdr.stars = get_p_stars(p.fdr)) %>%
+  ungroup()
+
+
+```
+
+```{r}
+# Format results into a spreadsheet
+results <- results %>%
+  mutate(Estimate = paste(round(estimate, 3), " [", round(ci.low, 3), " - ", round(ci.high,3), "]", sep = ""),
+         p = round(p.value,3)) %>% 
+  select(sample, predictor, outcome, term, Estimate, p, p.fdr.stars) 
+
+
+results_wide <- results %>% 
+  pivot_wider(names_from=outcome, values_from=c(Estimate, p, p.fdr.stars)) %>% 
+  select(predictor, term, sample, Estimate_MMSE, p_MMSE, p.fdr.stars_MMSE, Estimate_MEM, p_MEM, p.fdr.stars_MEM, Estimate_EXEC, p_EXEC, p.fdr.stars_EXEC) %>% 
+  arrange(desc(term))
+
+
+CAV_lifetime_table <- results_wide %>% filter(predictor =="CAV_lifetime")
+CAV_past_table     <- results_wide %>% filter(predictor =="CAV_past")
+CAV_current_table  <- results_wide %>% filter(predictor =="CAV_current")
+FAV_table          <- results_wide %>% filter(predictor =="FAV")
+
+
+summary_table <- rbind(CAV_lifetime_table, 
+               rep(NA,12),
+               CAV_past_table,
+               rep(NA,12),
+               CAV_current_table,
+               rep(NA,12),
+               FAV_table
+)
+
+openxlsx::write.xlsx(summary_table, here(results_folder, "Summary_table_all_terms.xlsx"), asTable = F)
+
+```
+
+
+
+
+

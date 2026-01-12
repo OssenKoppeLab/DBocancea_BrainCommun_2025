@@ -1,0 +1,1196 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+```{r}
+
+library(tidyverse)
+library(here)
+
+library(mice)
+library(broom.mixed)
+
+```
+
+
+## Longitudinal models
+
+### All 
+
+```{r}
+# Load mids objects (with longitudinal cognition)
+datmedian_MMSE <- readRDS(file = here("data", "processed", "Part2_ADcont_median_mmse.rds")) %>% mutate(I_ID = as.factor(I_ID))
+datmedian_MEM  <- readRDS(file = here("data", "processed", "Part2_ADcont_median_mem.rds")) %>% mutate(I_ID = as.factor(I_ID))
+datmedian_EXEC <- readRDS(file = here("data", "processed", "Part2_ADcont_median_exec.rds")) %>% mutate(I_ID = as.factor(I_ID))
+
+```
+
+#### CAV_lifetime
+
+```{r fig.height=15, fig.width=10}
+
+# CAV_lifetime - MMSE
+
+# Anova to check random slopes
+anova(with(datmedian_MMSE, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +   (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MMSE, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +   (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_CAV_lifetime_MMSE_inter_s  <- with(datmedian_MMSE, 
+                                        lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), 
+                                                   control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_MMSE_main_s <- with(datmedian_MMSE, 
+                                      lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), 
+                                                     control = lme4::lmerControl(optimizer = "bobyqa")))
+
+
+# check model assumptions
+performance::check_model(lmer_CAV_lifetime_MMSE_inter_s)
+performance::check_model(lmer_CAV_lifetime_MMSE_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_lifetime - MEM
+
+anova(with(datmedian_MEM, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MEM, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+
+lmer_CAV_lifetime_MEM_inter_s  <- with(datmedian_MEM, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_MEM_main_s <- with(datmedian_MEM, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_lifetime_MEM_inter_s)
+performance::check_model(lmer_CAV_lifetime_MEM_main_s)
+```
+
+```{r fig.height=15, fig.width=10}
+
+# CAV_lifetime - EXEC
+
+# anova(with(datmedian_EXEC,
+#            lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))),
+#       with(datmedian_EXEC,
+#            lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID),
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))))
+# #model doesn't run with random slopes
+
+
+lmer_CAV_lifetime_EXEC_inter_s  <- with(datmedian_EXEC, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_EXEC_main_s <- with(datmedian_EXEC, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_lifetime_EXEC_inter_s)
+performance::check_model(lmer_CAV_lifetime_EXEC_main_s)
+```
+
+
+#### CAV_past
+
+```{r fig.height=15, fig.width=10}
+# CAV_past - MMSE
+
+anova(with(datmedian_MMSE, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MMSE, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_CAV_past_MMSE_inter_s  <- with(datmedian_MMSE, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                                (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_MMSE_main_s <- with(datmedian_MMSE, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                              (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_past_MMSE_inter_s)
+performance::check_model(lmer_CAV_past_MMSE_main_s)
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_past - MEM
+
+anova(with(datmedian_MEM, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MEM, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+lmer_CAV_past_MEM_inter_s  <- with(datmedian_MEM, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                               (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_MEM_main_s <- with(datmedian_MEM, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_past_MEM_inter_s)
+performance::check_model(lmer_CAV_past_MEM_main_s)
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_past - EXEC
+
+# anova(with(datmedian_EXEC,
+#            lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))),
+#       with(datmedian_EXEC,
+#            lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID),
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))))
+# Can't run the model with random slopes
+
+lmer_CAV_past_EXEC_inter_s  <- with(datmedian_EXEC, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                                (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_EXEC_main_s <- with(datmedian_EXEC, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                              (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_past_EXEC_inter_s)
+performance::check_model(lmer_CAV_past_EXEC_main_s)
+```
+
+
+#### CAV_current
+
+```{r fig.height=15, fig.width=10}
+# CAV_current - MMSE
+
+anova(with(datmedian_MMSE, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MMSE, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_CAV_current_MMSE_inter_s  <- with(datmedian_MMSE, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                                (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_MMSE_main_s <- with(datmedian_MMSE, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                              (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_current_MMSE_inter_s)
+performance::check_model(lmer_CAV_current_MMSE_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_current - MEM
+
+anova(with(datmedian_MEM, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MEM, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+lmer_CAV_current_MEM_inter_s  <- with(datmedian_MEM, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                               (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_MEM_main_s <- with(datmedian_MEM, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_current_MEM_inter_s)
+performance::check_model(lmer_CAV_current_MEM_main_s)
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_current - EXEC
+
+# anova(with(datmedian_EXEC,
+#            lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))),
+#       with(datmedian_EXEC,
+#            lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID),
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))))
+# #model doesn't run with random slopes
+
+
+lmer_CAV_current_EXEC_inter_s  <- with(datmedian_EXEC, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                                (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_EXEC_main_s <- with(datmedian_EXEC, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                              (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_current_EXEC_inter_s)
+performance::check_model(lmer_CAV_current_EXEC_main_s)
+```
+
+
+#### FAV
+
+```{r fig.height=15, fig.width=10}
+# FAV - MMSE
+
+anova(with(datmedian_MMSE, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MMSE, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_FAV_MMSE_inter_s  <- with(datmedian_MMSE, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                                (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_MMSE_main_s <- with(datmedian_MMSE, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                              (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_FAV_MMSE_inter_s)
+performance::check_model(lmer_FAV_MMSE_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# FAV - MEM
+
+anova(with(datmedian_MEM, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MEM, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+lmer_FAV_MEM_inter_s  <- with(datmedian_MEM, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                               (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_MEM_main_s <- with(datmedian_MEM, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+performance::check_model(lmer_FAV_MEM_inter_s)
+performance::check_model(lmer_FAV_MEM_main_s)
+```
+
+```{r fig.height=15, fig.width=10}
+# FAV - EXEC
+
+# anova(with(datmedian_EXEC,
+#            lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))),
+#       with(datmedian_EXEC,
+#            lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID),
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))))
+# #model doesn't run with random slopes
+
+
+
+lmer_FAV_EXEC_inter_s  <- with(datmedian_EXEC, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                                (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_EXEC_main_s <- with(datmedian_EXEC, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                              (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+performance::check_model(lmer_FAV_EXEC_inter_s)
+performance::check_model(lmer_FAV_EXEC_main_s)
+```
+
+
+
+
+
+### SCD
+
+```{r}
+
+# Subset SCD
+datmedian_MMSE_SCD <- datmedian_MMSE %>% filter(Diagnosis == "SCD")
+datmedian_MEM_SCD  <- datmedian_MEM  %>% filter(Diagnosis == "SCD")
+datmedian_EXEC_SCD <- datmedian_EXEC %>% filter(Diagnosis == "SCD")
+
+```
+
+
+#### CAV_lifetime
+
+```{r fig.height=15, fig.width=10}
+
+# CAV_lifetime - MMSE
+
+# Anova to check random slopes
+anova(with(datmedian_MMSE_SCD, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MMSE_SCD, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_CAV_lifetime_MMSE_inter_s  <- with(datmedian_MMSE_SCD, 
+                                        lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), 
+                                                   control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_MMSE_main_s <- with(datmedian_MMSE_SCD, 
+                                      lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), 
+                                                     control = lme4::lmerControl(optimizer = "bobyqa")))
+# check model assumptions
+performance::check_model(lmer_CAV_lifetime_MMSE_inter_s)
+performance::check_model(lmer_CAV_lifetime_MMSE_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_lifetime - MEM
+
+anova(with(datmedian_MEM_SCD, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MEM_SCD, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+
+lmer_CAV_lifetime_MEM_inter_s  <- with(datmedian_MEM_SCD, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_MEM_main_s <- with(datmedian_MEM_SCD, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_lifetime_MEM_inter_s)
+performance::check_model(lmer_CAV_lifetime_MEM_main_s)
+```
+
+```{r fig.height=15, fig.width=10}
+
+# CAV_lifetime - EXEC
+
+anova(with(datmedian_EXEC_SCD,
+           lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_EXEC_SCD,
+           lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_CAV_lifetime_EXEC_inter_s  <- with(datmedian_EXEC_SCD, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_EXEC_main_s <- with(datmedian_EXEC_SCD, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_lifetime_EXEC_inter_s)
+performance::check_model(lmer_CAV_lifetime_EXEC_main_s)
+
+```
+
+
+#### CAV_past
+
+```{r fig.height=15, fig.width=10}
+# CAV_past - MMSE
+
+anova(with(datmedian_MMSE_SCD, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MMSE_SCD, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_CAV_past_MMSE_inter_s  <- with(datmedian_MMSE_SCD, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                                (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_MMSE_main_s <- with(datmedian_MMSE_SCD, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                              (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_past_MMSE_inter_s)
+performance::check_model(lmer_CAV_past_MMSE_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_past - MEM
+
+anova(with(datmedian_MEM_SCD, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MEM_SCD, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+lmer_CAV_past_MEM_inter_s  <- with(datmedian_MEM_SCD, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                               (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_MEM_main_s <- with(datmedian_MEM_SCD, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_past_MEM_inter_s)
+performance::check_model(lmer_CAV_past_MEM_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_past - EXEC
+
+anova(with(datmedian_EXEC_SCD,
+           lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_EXEC_SCD,
+           lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+lmer_CAV_past_EXEC_inter_s  <- with(datmedian_EXEC_SCD, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                                (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_EXEC_main_s <- with(datmedian_EXEC_SCD, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                              (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_past_EXEC_inter_s)
+performance::check_model(lmer_CAV_past_EXEC_main_s)
+```
+
+
+#### CAV_current
+
+```{r fig.height=15, fig.width=10}
+# CAV_current - MMSE
+
+anova(with(datmedian_MMSE_SCD, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MMSE_SCD, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_CAV_current_MMSE_inter_s  <- with(datmedian_MMSE_SCD, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                                (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_MMSE_main_s <- with(datmedian_MMSE_SCD, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                              (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_current_MMSE_inter_s)
+performance::check_model(lmer_CAV_current_MMSE_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_current - MEM
+
+anova(with(datmedian_MEM_SCD, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MEM_SCD, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+lmer_CAV_current_MEM_inter_s  <- with(datmedian_MEM_SCD, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                               (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_MEM_main_s <- with(datmedian_MEM_SCD, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_current_MEM_inter_s)
+performance::check_model(lmer_CAV_current_MEM_main_s)
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_current - EXEC
+
+anova(with(datmedian_EXEC_SCD,
+           lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_EXEC_SCD,
+           lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_CAV_current_EXEC_inter_s  <- with(datmedian_EXEC_SCD, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                                (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_EXEC_main_s <- with(datmedian_EXEC_SCD, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                              (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_current_EXEC_inter_s)
+performance::check_model(lmer_CAV_current_EXEC_main_s)
+```
+
+
+#### FAV
+
+```{r fig.height=15, fig.width=10}
+# FAV - MMSE
+
+anova(with(datmedian_MMSE_SCD, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MMSE_SCD, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_FAV_MMSE_inter_s  <- with(datmedian_MMSE_SCD, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                                (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_MMSE_main_s <- with(datmedian_MMSE_SCD, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                              (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_FAV_MMSE_inter_s)
+performance::check_model(lmer_FAV_MMSE_main_s)
+```
+
+```{r fig.height=15, fig.width=10}
+# FAV - MEM
+
+anova(with(datmedian_MEM_SCD, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MEM_SCD, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+lmer_FAV_MEM_inter_s  <- with(datmedian_MEM_SCD, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                               (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_MEM_main_s <- with(datmedian_MEM_SCD, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_FAV_MEM_inter_s)
+performance::check_model(lmer_FAV_MEM_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# FAV - EXEC
+
+anova(with(datmedian_EXEC_SCD,
+           lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_EXEC_SCD,
+           lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_FAV_EXEC_inter_s  <- with(datmedian_EXEC_SCD, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                                (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_EXEC_main_s <- with(datmedian_EXEC_SCD, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                              (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_FAV_EXEC_inter_s)
+performance::check_model(lmer_FAV_EXEC_main_s)
+
+```
+
+
+### MCI
+
+```{r}
+
+# Subset MCI
+datmedian_MMSE_MCI <- datmedian_MMSE %>% filter(Diagnosis == "MCI")
+datmedian_MEM_MCI  <- datmedian_MEM  %>% filter(Diagnosis == "MCI")
+datmedian_EXEC_MCI <- datmedian_EXEC %>% filter(Diagnosis == "MCI")
+
+```
+
+
+#### CAV_lifetime
+
+```{r fig.height=15, fig.width=10}
+
+# CAV_lifetime - MMSE
+
+# Anova to check random slopes
+anova(with(datmedian_MMSE_MCI, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MMSE_MCI, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_CAV_lifetime_MMSE_inter_s  <- with(datmedian_MMSE_MCI, 
+                                        lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex + (Time_years|I_ID), 
+                                                   control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_MMSE_main_s <- with(datmedian_MMSE_MCI, 
+                                      lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex + 
+                                                       (Time_years|I_ID),  control = lme4::lmerControl(optimizer = "bobyqa")))
+
+# check model assumptions
+performance::check_model(lmer_CAV_lifetime_MMSE_inter_s)
+performance::check_model(lmer_CAV_lifetime_MMSE_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_lifetime - MEM
+
+anova(with(datmedian_MEM_MCI, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MEM_MCI, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+
+lmer_CAV_lifetime_MEM_inter_s  <- with(datmedian_MEM_MCI, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_MEM_main_s <- with(datmedian_MEM_MCI, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_lifetime_MEM_inter_s)
+performance::check_model(lmer_CAV_lifetime_MEM_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+
+# CAV_lifetime - EXEC
+
+anova(with(datmedian_EXEC_MCI, 
+           lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_EXEC_MCI, 
+           lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_CAV_lifetime_EXEC_inter_s  <- with(datmedian_EXEC_MCI, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_EXEC_main_s <- with(datmedian_EXEC_MCI, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_lifetime_EXEC_inter_s)
+performance::check_model(lmer_CAV_lifetime_EXEC_main_s)
+
+```
+
+
+#### CAV_past
+
+```{r fig.height=15, fig.width=10}
+# CAV_past - MMSE
+
+anova(with(datmedian_MMSE_MCI, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MMSE_MCI, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_CAV_past_MMSE_inter_s  <- with(datmedian_MMSE_MCI, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                                (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_MMSE_main_s <- with(datmedian_MMSE_MCI, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                              (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_past_MMSE_inter_s)
+performance::check_model(lmer_CAV_past_MMSE_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_past - MEM
+
+anova(with(datmedian_MEM_MCI, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MEM_MCI, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+lmer_CAV_past_MEM_inter_s  <- with(datmedian_MEM_MCI, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                               (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_MEM_main_s <- with(datmedian_MEM_MCI, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_past_MEM_inter_s)
+performance::check_model(lmer_CAV_past_MEM_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_past - EXEC
+
+anova(with(datmedian_EXEC_MCI,
+           lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_EXEC_MCI,
+           lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_CAV_past_EXEC_inter_s  <- with(datmedian_EXEC_MCI, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                                (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_EXEC_main_s <- with(datmedian_EXEC_MCI, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                              (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_past_EXEC_inter_s)
+performance::check_model(lmer_CAV_past_EXEC_main_s)
+
+```
+
+
+#### CAV_current
+
+```{r fig.height=15, fig.width=10}
+# CAV_current - MMSE
+
+anova(with(datmedian_MMSE_MCI, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MMSE_MCI, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_CAV_current_MMSE_inter_s  <- with(datmedian_MMSE_MCI, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                                (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_MMSE_main_s <- with(datmedian_MMSE_MCI, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                              (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_current_MMSE_inter_s)
+performance::check_model(lmer_CAV_current_MMSE_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_current - MEM
+
+anova(with(datmedian_MEM_MCI, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MEM_MCI, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+lmer_CAV_current_MEM_inter_s  <- with(datmedian_MEM_MCI, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                               (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_MEM_main_s <- with(datmedian_MEM_MCI, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_current_MEM_inter_s)
+performance::check_model(lmer_CAV_current_MEM_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_current - EXEC
+
+anova(with(datmedian_EXEC_MCI,
+           lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_EXEC_MCI,
+           lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_CAV_current_EXEC_inter_s  <- with(datmedian_EXEC_MCI, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                                (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_EXEC_main_s <- with(datmedian_EXEC_MCI, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                              (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_current_EXEC_inter_s)
+performance::check_model(lmer_CAV_current_EXEC_main_s)
+
+```
+
+
+#### FAV
+
+```{r fig.height=15, fig.width=10}
+# FAV - MMSE
+
+anova(with(datmedian_MMSE_MCI, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MMSE_MCI, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_FAV_MMSE_inter_s  <- with(datmedian_MMSE_MCI, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                                (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_MMSE_main_s <- with(datmedian_MMSE_MCI, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                              (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+
+performance::check_model(lmer_FAV_MMSE_inter_s)
+performance::check_model(lmer_FAV_MMSE_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# FAV - MEM
+
+anova(with(datmedian_MEM_MCI, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MEM_MCI, 
+           lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+lmer_FAV_MEM_inter_s  <- with(datmedian_MEM_MCI, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                               (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_MEM_main_s <- with(datmedian_MEM_MCI, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_FAV_MEM_inter_s)
+performance::check_model(lmer_FAV_MEM_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# FAV - EXEC
+
+anova(with(datmedian_EXEC_MCI,
+           lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_EXEC_MCI,
+           lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_FAV_EXEC_inter_s  <- with(datmedian_EXEC_MCI, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                                (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_EXEC_main_s <- with(datmedian_EXEC_MCI, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                              (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_FAV_EXEC_inter_s)
+performance::check_model(lmer_FAV_EXEC_main_s)
+
+```
+
+
+### AD
+
+```{r}
+
+# Subset AD
+datmedian_MMSE_AD <- datmedian_MMSE %>% filter(Diagnosis == "AD")
+datmedian_MEM_AD  <- datmedian_MEM  %>% filter(Diagnosis == "AD")
+datmedian_EXEC_AD <- datmedian_EXEC %>% filter(Diagnosis == "AD")
+
+```
+
+#### CAV_lifetime
+
+```{r fig.height=15, fig.width=10}
+
+# CAV_lifetime - MMSE
+
+# Anova to check random slopes
+anova(with(datmedian_MMSE_AD, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MMSE_AD, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_CAV_lifetime_MMSE_inter_s  <- with(datmedian_MMSE_AD, 
+                                        lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), 
+                                                   control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_MMSE_main_s <- with(datmedian_MMSE_AD, 
+                                      lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (Time_years|I_ID), 
+                                                     control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_lifetime_MMSE_inter_s)
+performance::check_model(lmer_CAV_lifetime_MMSE_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_lifetime - MEM
+
+# anova(with(datmedian_MEM_AD, 
+#            lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))),
+#       with(datmedian_MEM_AD, 
+#            lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))))
+# # model doesn't run with random slopes
+
+
+
+lmer_CAV_lifetime_MEM_inter_s  <- with(datmedian_MEM_AD, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_MEM_main_s <- with(datmedian_MEM_AD, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_lifetime_MEM_inter_s)
+performance::check_model(lmer_CAV_lifetime_MEM_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+
+# CAV_lifetime - EXEC
+
+# anova(with(datmedian_EXEC_AD, 
+#            lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))),
+#       with(datmedian_EXEC_AD, 
+#            lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))))
+# # model doesn't run with random slopes
+
+
+lmer_CAV_lifetime_EXEC_inter_s  <- with(datmedian_EXEC_AD, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_lifetime_EXEC_main_s <- with(datmedian_EXEC_AD, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_lifetime_s + Time_years*Age_s + Time_years*Sex +
+                                                             (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_lifetime_EXEC_inter_s)
+performance::check_model(lmer_CAV_lifetime_EXEC_main_s)
+
+```
+
+
+#### CAV_past
+
+```{r fig.height=15, fig.width=10}
+# CAV_past - MMSE
+
+anova(with(datmedian_MMSE_AD, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MMSE_AD, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_CAV_past_MMSE_inter_s  <- with(datmedian_MMSE_AD, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                                (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_MMSE_main_s <- with(datmedian_MMSE_AD, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                              (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_past_MMSE_inter_s)
+performance::check_model(lmer_CAV_past_MMSE_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_past - MEM
+
+# anova(with(datmedian_MEM_AD, 
+#            lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))),
+#       with(datmedian_MEM_AD, 
+#            lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))))
+# # model doesn't run with random slopes
+
+lmer_CAV_past_MEM_inter_s  <- with(datmedian_MEM_AD, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                               (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_MEM_main_s <- with(datmedian_MEM_AD, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                             (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_past_MEM_inter_s)
+performance::check_model(lmer_CAV_past_MEM_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_past - EXEC
+
+# anova(with(datmedian_EXEC_AD,
+#            lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))),
+#       with(datmedian_EXEC_AD,
+#            lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID),
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))))
+# # model doesn't run with random slopes
+
+
+lmer_CAV_past_EXEC_inter_s  <- with(datmedian_EXEC_AD, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                                (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_past_EXEC_main_s <- with(datmedian_EXEC_AD, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_past_s + Time_years*Age_s + Time_years*Sex +
+                                                              (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_past_EXEC_inter_s)
+performance::check_model(lmer_CAV_past_EXEC_main_s)
+
+```
+
+
+#### CAV_current
+
+```{r fig.height=15, fig.width=10}
+# CAV_current - MMSE
+
+anova(with(datmedian_MMSE_AD, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MMSE_AD, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_CAV_current_MMSE_inter_s  <- with(datmedian_MMSE_AD, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                                (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_MMSE_main_s <- with(datmedian_MMSE_AD, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                              (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_current_MMSE_inter_s)
+performance::check_model(lmer_CAV_current_MMSE_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_current - MEM
+
+# anova(with(datmedian_MEM_AD, 
+#            lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))),
+#       with(datmedian_MEM_AD, 
+#            lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))))
+# # model doesn't run with random slopes
+
+
+lmer_CAV_current_MEM_inter_s  <- with(datmedian_MEM_AD, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                               (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_MEM_main_s <- with(datmedian_MEM_AD, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                             (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_current_MEM_inter_s)
+performance::check_model(lmer_CAV_current_MEM_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# CAV_current - EXEC
+
+# anova(with(datmedian_EXEC_AD,
+#            lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))),
+#       with(datmedian_EXEC_AD,
+#            lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID),
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))))
+# # model doesn't run with random slopes
+
+
+lmer_CAV_current_EXEC_inter_s  <- with(datmedian_EXEC_AD, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                                (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_CAV_current_EXEC_main_s <- with(datmedian_EXEC_AD, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*CAV_current_s + Time_years*Age_s + Time_years*Sex +
+                                                              (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_CAV_current_EXEC_inter_s)
+performance::check_model(lmer_CAV_current_EXEC_main_s)
+
+```
+
+
+#### FAV
+
+```{r fig.height=15, fig.width=10}
+# FAV - MMSE
+
+anova(with(datmedian_MMSE_AD, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+                          control = lme4::lmerControl(optimizer = "bobyqa"))),
+      with(datmedian_MMSE_AD, 
+           lmerTest::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+                          control = lme4::lmerControl(optimizer = "bobyqa"))))
+
+
+lmer_FAV_MMSE_inter_s  <- with(datmedian_MMSE_AD, lme4::lmer(MMSE_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                                (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_MMSE_main_s <- with(datmedian_MMSE_AD, lme4::lmer(MMSE_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                              (Time_years|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_FAV_MMSE_inter_s)
+performance::check_model(lmer_FAV_MMSE_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# FAV - MEM
+
+# anova(with(datmedian_MEM_AD, 
+#            lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))),
+#       with(datmedian_MEM_AD, 
+#            lmerTest::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID), 
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))))
+# # model doesn't run with random slopes
+
+
+lmer_FAV_MEM_inter_s  <- with(datmedian_MEM_AD, lme4::lmer(MEM_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                               (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_MEM_main_s <- with(datmedian_MEM_AD, lme4::lmer(MEM_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                             (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_FAV_MEM_inter_s)
+performance::check_model(lmer_FAV_MEM_main_s)
+
+```
+
+```{r fig.height=15, fig.width=10}
+# FAV - EXEC
+
+# anova(with(datmedian_EXEC_AD,
+#            lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (Time_years|I_ID),
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))),
+#       with(datmedian_EXEC_AD,
+#            lmerTest::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +  (1|I_ID),
+#                           control = lme4::lmerControl(optimizer = "bobyqa"))))
+# # model doesn't run with random slopes
+
+
+lmer_FAV_EXEC_inter_s  <- with(datmedian_EXEC_AD, lme4::lmer(EXEC_s ~  Time_years * TP_thick_s * FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                                (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+lmer_FAV_EXEC_main_s <- with(datmedian_EXEC_AD, lme4::lmer(EXEC_s ~  Time_years*TP_thick_s + Time_years*FAV_s + Time_years*Age_s + Time_years*Sex +
+                                                              (1|I_ID), control = lme4::lmerControl(optimizer = "bobyqa")))
+
+performance::check_model(lmer_FAV_EXEC_inter_s)
+performance::check_model(lmer_FAV_EXEC_main_s)
+
+```
+
+
+
+
+
+
